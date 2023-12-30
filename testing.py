@@ -16,7 +16,6 @@ pdfmetrics.registerFont(TTFont('GillSansBold', 'GILB____.ttf'))
 pdfmetrics.registerFontFamily('GillSans', normal = 'GillSans', bold = 'GillSansBold')
 
 # Document config
-output_dir = r'C:\GitHub\misc\ORCIDResume' + r'\test_resume.pdf'
 margin = 50  # proportion of page size
 embolden_author = True
 initalize_authors = True
@@ -35,14 +34,10 @@ def list_works(orcid_dir):
     for (i, w) in enumerate(work_xml_list):
         with open(os.path.join(orcid_dir, 'works', w), encoding='utf-8') as fd:
             in_work_dict = xmltodict.parse(fd.read())
-        print(str(i) + ': ' + in_work_dict['work:work']['work:title']['common:title'] +
-              ' (' + in_work_dict['work:work']['@put-code'] + ')')
+        print(str(i) + ': ' + in_work_dict['work:work']['work:title']['common:title'] + ' (' + in_work_dict['work:work']['@put-code'] + ')')
 
 
-def nested_key_check(input_dict, *keys):
-    '''
-    Check if *keys (nested) exists in input dictionary.
-    '''
+def get_recursive_key(input_dict, *keys):
     if not isinstance(input_dict, dict):
         raise TypeError('first argument must be a dict.')
 
@@ -51,38 +46,35 @@ def nested_key_check(input_dict, *keys):
 
     _dict = input_dict
     for key in keys:
-        try:
+        if _dict.__contains__(key) and not _dict[key] is None:
             _dict = _dict[key]
-        except KeyError:
-            print('Could not find key: ' + key)
-            return False
-    return True
+        else:
+            print('Could not find: ' + '-'.join(keys) + ' in item #' + input_dict['@put-code'] + '\n\t' + input_dict['work:title']['common:title'])
+            return ''
+    return _dict
 
 
 def load_work(xml_path):
-    # Convert .xml to dictionary
+    # Convert .xml to dictionary. Generically loads fields, styles determine later display
     with open(xml_path, encoding='utf-8') as fd:
         in_work_dict = xmltodict.parse(fd.read())
     in_work_dict = in_work_dict['work:work']  # Everything is in this one field so just skip to it
     out_work_dict = {'type': in_work_dict['work:type'],  # This field is used for sorting entries and defines other behavior
-                     'title': '',
-                     'journal': '',
-                     'doi': '',
-                     'year': '',
-                     'month': '',
-                     'authors': []}
-    # DOI
-    if nested_key_check(in_work_dict, 'common:url'):
-        out_work_dict['doi'] = in_work_dict['common:url']
-    # Title and journal
-    if out_work_dict['type'] in ['journal-article', 'lecture-speech']:
-        if nested_key_check(in_work_dict, 'work:title', 'common:title'):
-            out_work_dict['title'] = in_work_dict['work:title']['common:title']
-        if nested_key_check(in_work_dict, 'work:journal-title'):
-            out_work_dict['journal'] = in_work_dict['work:journal-title']
-    elif out_work_dict['type'] in ['preprint']:
-        if nested_key_check(in_work_dict, 'work:title', 'common:title'):
-            out_work_dict['title'] = in_work_dict['work:title']['common:title']
+                     'title': get_recursive_key(in_work_dict, 'work:title', 'common:title'),
+                     'journal': get_recursive_key(in_work_dict, 'work:journal-title'),
+                     'doi': get_recursive_key(in_work_dict, 'common:url'),
+                     'year': get_recursive_key(in_work_dict, 'common:publication-date', 'common:year'),
+                     'month': get_recursive_key(in_work_dict, 'common:publication-date', 'common:month'),
+                     'authors': get_recursive_key(in_work_dict, 'work:contributors', 'work:contributor')}
+    # Extract authors from list
+    if not out_work_dict['authors'] == '':
+        if isinstance(out_work_dict['authors'], dict):
+            out_work_dict['authors'] = [out_work_dict['authors']['work:credit-name']]
+        elif isinstance(out_work_dict['authors'], list):
+            out_work_dict['authors'] = [i['work:credit-name'] for i in out_work_dict['authors']]
+
+    # Journal / repository
+    if out_work_dict['type'] == 'preprint':
         if not out_work_dict['doi'] == '':
             try:
                 print('Trying to find host repository for article: ' + out_work_dict['title'])
@@ -94,19 +86,6 @@ def load_work(xml_path):
                 out_work_dict['journal'] = url[:url.rfind('.')]
             except:
                 print('Could not lookup preprint: ' + out_work_dict['title'])
-    elif out_work_dict['type'] in ['book-chapter']:
-        if nested_key_check(in_work_dict, 'work:title', 'common:subtitle'):
-            out_work_dict['title'] = in_work_dict['work:title']['common:subtitle']
-        if nested_key_check(in_work_dict, 'work:title', 'common:title'):
-            out_work_dict['journal'] = in_work_dict['work:title']['common:title']
-    # Dates
-    if nested_key_check(in_work_dict, 'common:publication-date', 'common:year'):
-        out_work_dict['year'] = in_work_dict['common:publication-date']['common:year']
-    if nested_key_check(in_work_dict, 'common:publication-date', 'common:month'):
-        out_work_dict['month'] = in_work_dict['common:publication-date']['common:month']
-    # Authors
-    if nested_key_check(in_work_dict, 'work:contributors', 'work:contributor'):
-        out_work_dict['authors'] = [i['work:credit-name'] for i in in_work_dict['work:contributors']['work:contributor']]
 
     return out_work_dict
 
@@ -116,19 +95,22 @@ def extract_orcid_info(orcid_dir):
     with open(os.path.join(orcid_dir, "person.xml")) as fd:
         personal_info = xmltodict.parse(fd.read())
     # Extract name
-    personal = {'lastname': personal_info['person:person']['person:name']['personal-details:family-name'],
-                'givenname': personal_info['person:person']['person:name']['personal-details:given-names'],
-                'fullname': (personal_info['person:person']['person:name']['personal-details:given-names'] + " "
-                             + personal_info['person:person']['person:name']['personal-details:family-name']),
-                'links': {'ORCID': 'https://orcid.org/' + personal_info['person:person']['person:name']['@path']}}
+    personal_info = personal_info['person:person']
+    personal = {'lastname': get_recursive_key(personal_info, 'person:name', 'personal-details:family-name'),
+                'givenname': get_recursive_key(personal_info, 'person:name', 'personal-details:given-names'),
+                'links': {'ORCID': 'https://orcid.org/' + get_recursive_key(personal_info, 'person:name', '@path')}}
+    # Workout other elements of name
+    personal['fullname'] = personal['givenname'] + ' ' + personal['lastname']
     personal['name-short'] = initalize_name(personal['fullname'])
     personal['firstname'] = personal['fullname'][0:personal['fullname'].find(' ')]
     # Extract links
-    if 'researcher-url:researcher-urls' in personal_info['person:person'].keys():
+    if 'researcher-url:researcher-urls' in personal_info.keys():
         # Assign so it's not insanely long
-        link_list = personal_info['person:person']['researcher-url:researcher-urls']['researcher-url:researcher-url']
+        link_list = get_recursive_key(personal_info, 'researcher-url:researcher-urls', 'researcher-url:researcher-url')
         for i in range(len(link_list)):
             personal['links'][link_list[i]['researcher-url:url-name']] = link_list[i]['researcher-url:url']
+    # Get primary email
+    personal['email'] = [e['email:email'] for e in personal_info['email:emails']['email:email'] if e['@primary'] == 'true'][0]
 
     # Works
     work_list = []
@@ -177,18 +159,10 @@ def add_work_section(elements, orcid_dict, heading, search_str):
     ncols = 6
     column_width = round((doc.pagesize[0] - (margin * 2)) / ncols)
     column_widths = [column_width] * ncols
-    # Make heading
-    # elements.append(Spacer(0, 10))
-    # elements.append(Paragraph(heading, style = sectionStyle))
-    # elements.append(Spacer(0, 10))
-    # d = Drawing(100, 5)
-    # d.add(Rect(-5, 0, doc.pagesize[0] - (margin * 2) - 5, 2, fillColor = colors.gray, strokeColor = colors.gray))
-    # elements.append(d)
-    # elements.append(Spacer(0, 5))
 
     # Get subset of publications
     works = [i for i in orcid_dict['work'] if i['type'] == search_str]
-    works = sorted(works, key = lambda v: int(v['year']) * 1000 + int(v['month']), reverse = True)
+    works = sorted(works, key = lambda v: int(v['year']) * 1000 + int(v['month']), reverse = True)  # Sort by year then month
 
     for (i, work) in enumerate(works):
         # work = works[w]
@@ -249,6 +223,7 @@ def add_work_section(elements, orcid_dict, heading, search_str):
 orcid_dir = r"C:\Users\Somlab\Downloads\0000-0002-6806-3302"
 orcid_info = extract_orcid_info(orcid_dir)
 #%%
+output_dir = r'C:\Users\Somlab\Downloads\test_resume.pdf'
 doc = SimpleDocTemplate(output_dir,
                         pagesize = letter,
                         leftMargin = margin,
