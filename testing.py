@@ -19,6 +19,7 @@ pdfmetrics.registerFontFamily('GillSans', normal = 'GillSans', bold = 'GillSansB
 margin = 50  # proportion of page size
 embolden_author = True
 initalize_authors = True
+style = 'greenspon-default'
 
 # Declare fonts
 sectionStyle = ParagraphStyle('Section', alignment = TA_LEFT, fontSize = 20, fontName = 'GillSansBold')
@@ -29,12 +30,17 @@ itemBodyStyle = ParagraphStyle('Section', alignment = TA_LEFT, fontSize = 9, fon
 
 
 #%% Functions
+def load_xml(xml_path):
+    with open(xml_path, encoding='utf-8') as xd:
+        xml_dict = xmltodict.parse(xd.read())
+    return xml_dict
+
+
 def list_works(orcid_dir):
     work_xml_list = os.listdir(os.path.join(orcid_dir, 'works'))
     for (i, w) in enumerate(work_xml_list):
-        with open(os.path.join(orcid_dir, 'works', w), encoding='utf-8') as fd:
-            in_work_dict = xmltodict.parse(fd.read())
-        print(str(i) + ': ' + in_work_dict['work:work']['work:title']['common:title'] + ' (' + in_work_dict['work:work']['@put-code'] + ')')
+        xml_dict = load_xml(os.path.join(orcid_dir, 'works', w))
+        print(str(i) + ': ' + xml_dict['work:work']['work:title']['common:title'] + ' (' + xml_dict['work:work']['@put-code'] + ')')
 
 
 def get_recursive_key(input_dict, *keys):
@@ -49,15 +55,39 @@ def get_recursive_key(input_dict, *keys):
         if _dict.__contains__(key) and not _dict[key] is None:
             _dict = _dict[key]
         else:
-            print('Could not find: ' + '-'.join(keys) + ' in item #' + input_dict['@put-code'] + '\n\t' + input_dict['work:title']['common:title'])
+            print('Could not find: ' + '-'.join(keys) + ' in item #' + input_dict['@put-code'])
             return ''
     return _dict
 
 
-def load_work(xml_path):
+def load_affiliation(affiliation_path):
+    # Load and enter top level xml
+    affiliation_xml = load_xml(affiliation_path)
+    if affiliation_xml.__contains__('education:education'):
+        affiliation_xml = affiliation_xml['education:education']
+    elif affiliation_xml.__contains__('employment:employment'):
+        affiliation_xml = affiliation_xml['employment:employment']
+    else:
+        ValueError('Unable to read affiliation .xml')
+
+    # Extract common info
+    affiliation_dict = {'organization': get_recursive_key(affiliation_xml, 'common:organization', 'common:name'),
+                        'department': get_recursive_key(affiliation_xml, 'common:department-name'),
+                        'role': get_recursive_key(affiliation_xml, 'common:role-title')}
+    # Make date str
+    sd = get_recursive_key(affiliation_xml, 'common:start-date', 'common:year')
+    ed = get_recursive_key(affiliation_xml, 'common:end-date', 'common:year')
+    if ed == '':
+        affiliation_dict['date'] = sd + ' - present'
+    else:
+        affiliation_dict['date'] = sd + ' - ' + ed
+
+    return affiliation_dict
+
+
+def load_work(work_path):
     # Convert .xml to dictionary. Generically loads fields, styles determine later display
-    with open(xml_path, encoding='utf-8') as fd:
-        in_work_dict = xmltodict.parse(fd.read())
+    in_work_dict = load_xml(work_path)
     in_work_dict = in_work_dict['work:work']  # Everything is in this one field so just skip to it
     out_work_dict = {'type': in_work_dict['work:type'],  # This field is used for sorting entries and defines other behavior
                      'title': get_recursive_key(in_work_dict, 'work:title', 'common:title'),
@@ -92,8 +122,7 @@ def load_work(xml_path):
 
 def extract_orcid_info(orcid_dir):
     # Personal info
-    with open(os.path.join(orcid_dir, "person.xml")) as fd:
-        personal_info = xmltodict.parse(fd.read())
+    personal_info = load_xml(os.path.join(orcid_dir, "person.xml"))
     # Extract name
     personal_info = personal_info['person:person']
     personal = {'lastname': get_recursive_key(personal_info, 'person:name', 'personal-details:family-name'),
@@ -112,6 +141,18 @@ def extract_orcid_info(orcid_dir):
     # Get primary email
     personal['email'] = [e['email:email'] for e in personal_info['email:emails']['email:email'] if e['@primary'] == 'true'][0]
 
+    # Employment
+    employment_list = []
+    affiliation_xml_list = os.listdir(os.path.join(orcid_dir, 'affiliations', 'employments'))
+    for i in affiliation_xml_list:
+        employment_list.append(load_affiliation(os.path.join(orcid_dir, 'affiliations', 'employments', i)))
+
+    # Education
+    education_list = []
+    education_xml_list = os.listdir(os.path.join(orcid_dir, 'affiliations', 'educations'))
+    for i in education_xml_list:
+        education_list.append(load_affiliation(os.path.join(orcid_dir, 'affiliations', 'educations', i)))
+
     # Works
     work_list = []
     work_xml_list = os.listdir(os.path.join(orcid_dir, 'works'))
@@ -119,7 +160,7 @@ def extract_orcid_info(orcid_dir):
         out_work_dict = load_work(os.path.join(orcid_dir, 'works', i))
         work_list.append(out_work_dict)
 
-    return {'personal': personal, 'work': work_list}
+    return {'personal': personal, 'work': work_list, 'employment': employment_list, 'education': education_list}
 
 
 def initalize_name(input_str):
@@ -154,11 +195,34 @@ def embolden_authors(person, author_list):
     return author_list
 
 
+def make_work_table(style, work_title, work_body, work_date, section_heading = ''):
+    if style.lower() == 'greenspon-default':
+        if section_heading == '':
+            table_data = [[Paragraph(work_title, style = itemTitleStyle), Paragraph(work_date, style = itemDateStyle)],
+                          [work_body, '']]
+            table_style = [('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                           ('NOSPLIT', (0, 0), (-1, -1))]  # ('GRID', (0,0), (-1, -1), 0.5, colors.gray)
+        else:
+            table_data = [[Paragraph(section_heading, style = sectionStyle), ''],
+                          ['', ''],  # Padding for large sectionStyle
+                          ['', ''],
+                          [Paragraph(work_title, style = itemTitleStyle), Paragraph(work_date, style = itemDateStyle)],
+                          [work_body, '']]
+            table_style = [('SPAN', (0, 0), (-1, 0)),
+                           ('LINEBELOW', (0, 1), (-1, 1), 2, colors.gray),
+                           ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                           ('NOSPLIT', (0, 0), (-1, -1))]
+    else:
+        ValueError('Invalid style')
+
+    return table_data, table_style
+
+
 def add_work_section(elements, orcid_dict, heading, search_str):
     # Compute column size
-    ncols = 6
-    column_width = round((doc.pagesize[0] - (margin * 2)) / ncols)
-    column_widths = [column_width] * ncols
+    table_width = int(doc.pagesize[0] - (margin * 2))
+    right_col_width = round(table_width / 7)
+    column_widths = [table_width - right_col_width, right_col_width]
 
     # Get subset of publications
     works = [i for i in orcid_dict['work'] if i['type'] == search_str]
@@ -167,9 +231,9 @@ def add_work_section(elements, orcid_dict, heading, search_str):
     for (i, work) in enumerate(works):
         # work = works[w]
         # Process title
-        item_title = work['title']
-        if '‐' in item_title:  # Replace bad character
-            item_title = item_title.replace('‐', '-')
+        work_title = work['title']
+        if '‐' in work_title:  # Replace bad character
+            work_title = work_title.replace('‐', '-')
         # Process author
         if not work['authors'] == []:
             author_list = work['authors']
@@ -177,6 +241,8 @@ def add_work_section(elements, orcid_dict, heading, search_str):
                 author_list = [initalize_name(i) for i in author_list]
             if embolden_author:
                 author_list = embolden_authors(orcid_dict['personal'], author_list)
+            if len(author_list) > 1:
+                author_list[-1] = 'and ' + author_list[-1]
             author_cat = ', '.join(author_list)
         else:
             author_cat = ''
@@ -187,36 +253,22 @@ def add_work_section(elements, orcid_dict, heading, search_str):
             idx = doi_str.find('doi.org/')
             short_doi = doi_str[idx + 8:]
             doi_str = '<link href="' + 'https://www.hdoi.org/' + short_doi + '">' + 'DOI: <u>' + short_doi + ' </u></link>'
-            doi_list = [Paragraph(work['journal'] + ', ' + doi_str + '<br/>' + author_cat, style = itemBodyStyle), '', '', '', '', '']
+            work_body = Paragraph(work['journal'] + ', ' + doi_str + '<br/>' + author_cat, style = itemBodyStyle)
         else:  # Remove "," and go straight to author line
-            doi_list = [Paragraph(work['journal'] + '<br/>' + author_cat, style = itemBodyStyle), '', '', '', '', '']
+            work_body = Paragraph(work['journal'] + '<br/>' + author_cat, style = itemBodyStyle)
 
         # prepare table
         if i == 0:
-            data = [[Paragraph(heading, style = sectionStyle), '', '', '', '', ''],
-                    ['', '', '', '', '', ''],  # Padding for large sectionStyle
-                    ['', '', '', '', '', ''],
-                    [Paragraph(item_title, style = itemTitleStyle), '', '', '', '', Paragraph(work['year'], style = itemDateStyle)],
-                    doi_list]
-            style = [('SPAN', (0, 0), (ncols - 2, 0)),
-                     ('LINEBELOW', (0, 1), (-1, 1), 2, colors.gray),
-                     ('SPAN', (0, 3), (ncols - 2, 3)),
-                     ('SPAN', (0, 4), (ncols - 2, 4)),
-                     ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                     ('NOSPLIT', (0, 0), (-1, -1))]
+            table_data, table_style = make_work_table(style, work_title, work_body, work['year'], section_heading = heading)
         else:
-            data = [[Paragraph(item_title, style = itemTitleStyle), '', '', '', '', Paragraph(work['year'], style = itemDateStyle)],
-                    doi_list]
-            style = [('SPAN', (0, 0), (ncols - 2, 0)),
-                     ('SPAN', (0, 1), (ncols - 2, 1)),
-                     ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                     ('NOSPLIT', (0, 0), (-1, -1))]  # ('GRID', (0,0), (-1, -1), 0.5, colors.gray)
+            table_data, table_style = make_work_table(style, work_title, work_body, work['year'], section_heading = '')
+
         # Convert to table
-        t = Table(data, colWidths = column_widths)
-        t.setStyle(style)
+        t = Table(table_data, colWidths = column_widths)
+        t.setStyle(table_style)
         # Append
         elements.append(t)
-        elements.append(Spacer(0, 5))
+        elements.append(Spacer(0, 10))
 
 
 #%% Build document
