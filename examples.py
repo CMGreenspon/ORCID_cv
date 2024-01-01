@@ -5,7 +5,6 @@ orcid_dir = r"C:\Users\somlab\Downloads\0000-0002-6806-3302"
 output_fname = r"C:\Users\somlab\Downloads\test_cv.pdf"
 ocv.quick_build(orcid_dir, output_fname)
 
-
 #%% Custom example
 orcid_dir = r"C:\Users\Somlab\Downloads\0000-0002-6806-3302"
 output_dir = r'C:\Users\Somlab\Downloads\test_resume.pdf'
@@ -30,4 +29,3 @@ ocv.add_work_section(elements, orcid_dict, config, 'Preprints', 'preprint')
 ocv.add_work_section(elements, orcid_dict, config, 'Book Chapters', 'book-chapter')
 ocv.add_work_section(elements, orcid_dict, config, 'Software', 'software')
 doc.build(elements)
-

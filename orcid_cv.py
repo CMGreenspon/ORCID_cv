@@ -392,7 +392,7 @@ def add_work_section(elements, orcid_dict, config, heading, search_str):
 
 
 def make_document_config(style):
-    if style == 'greenspon-default':
+    if style.lower() == 'greenspon-default':
         # Enable TTF fonts
         pdfmetrics.registerFont(TTFont('GillSans', 'GIL_____.ttf'))
         pdfmetrics.registerFont(TTFont('GillSansBold', 'GILB____.ttf'))
