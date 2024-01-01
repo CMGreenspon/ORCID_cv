@@ -1,4 +1,4 @@
-import orcid_resume as ocv
+import orcid_cv as ocv
 
 #%% Quick build
 orcid_dir = r"C:\Users\somlab\Downloads\0000-0002-6806-3302"
