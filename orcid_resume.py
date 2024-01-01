@@ -1,39 +1,16 @@
 import os
 import xmltodict
+import requests
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 from reportlab.platypus import Paragraph, Spacer, Table, SimpleDocTemplate, Image
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.graphics.shapes import Drawing, Rect
 from reportlab.lib import colors
-from reportlab.lib.units import cm
-import requests
-
-# Enable TTF fonts
-pdfmetrics.registerFont(TTFont('GillSans', 'GIL_____.ttf'))
-pdfmetrics.registerFont(TTFont('GillSansBold', 'GILB____.ttf'))
-pdfmetrics.registerFontFamily('GillSans', normal = 'GillSans', bold = 'GillSansBold')
-
-# Document config
-margin = 50  # proportion of page size
-item_spacing = 5
-embolden_author = True
-initalize_authors = True
-style = 'greenspon-default'
-
-# Declare fonts
-personStyle = ParagraphStyle('PersonTitle', alignment = TA_LEFT, fontSize = 28, fontName = 'GillSansBold', leading = 0)
-personsummaryStyle = ParagraphStyle('PersonSummary', alignment = TA_RIGHT, fontSize = 9, fontName = 'GillSans')
-sectionStyle = ParagraphStyle('SectionTitle', alignment = TA_LEFT, fontSize = 20, fontName = 'GillSansBold')
-itemTitleStyle = ParagraphStyle('ItemTitle', alignment = TA_LEFT, fontSize = 11, fontName = 'GillSansBold')
-itemDateStyle = ParagraphStyle('ItemDate', alignment = TA_RIGHT, fontSize = 9, fontName = 'GillSansBold')
-itemBodyStyle = ParagraphStyle('ItemBody', alignment = TA_LEFT, fontSize = 9, fontName = 'GillSans', underlineWidth = 1,
-                               underlineOffset = '-0.1*F')
+package_directory = os.path.dirname(os.path.abspath(__file__))
 
 
-#%% Functions
 class HyperlinkedImage(Image, object):
     # https://stackoverflow.com/questions/18114820/is-it-possible-to-get-a-flowables-coordinate-position-once-its-rendered-using
     def __init__(self, filename, hyperlink=None, width=None, height=None, kind='direct', mask='auto', lazy=1):
@@ -223,10 +200,10 @@ def embolden_authors(person, author_list):
     return author_list
 
 
-def get_column_widths(style, section_type):
+def get_column_widths(config, section_type):
     ratio = 1
-    table_width = int(doc.pagesize[0] - (margin * 2))
-    if style.lower() == 'greenspon-default':
+    table_width = int(config['pagesize'][0] - (config['margin'] * 2))
+    if config['style'] == 'greenspon-default':
         if section_type == 'work':
             ratio = 7
         elif section_type == 'affiliation':
@@ -242,18 +219,18 @@ def get_column_widths(style, section_type):
     return [table_width - right_col_width, right_col_width]
 
 
-def make_affiliation_table(style, affiliation, section_heading = ''):
-    if style.lower() == 'greenspon-default':
+def make_affiliation_table(config, affiliation, section_heading = ''):
+    if config['style'] == 'greenspon-default':
         if section_heading == '':
-            table_data = [[Paragraph(affiliation['role'], style = itemTitleStyle), Paragraph(affiliation['date_range'], style = itemDateStyle)],
-                          [Paragraph(affiliation['organization'] + ', ' + affiliation['department'], style = itemBodyStyle), '']]
+            table_data = [[Paragraph(affiliation['role'], style = config['item_title_style']), Paragraph(affiliation['date_range'], style = config['item_date_style'])],
+                          [Paragraph(affiliation['organization'] + ', ' + affiliation['department'], style = config['item_body_style']), '']]
             table_style = [('VALIGN', (0, 0), (-1, -1), 'TOP'),
                            ('NOSPLIT', (0, 0), (-1, -1))]  # ('GRID', (0,0), (-1, -1), 0.5, colors.gray)
         else:
-            table_data = [[Paragraph(section_heading, style = sectionStyle), ''],
-                          ['', ''],  # Padding for large sectionStyle
-                          [Paragraph(affiliation['role'], style = itemTitleStyle), Paragraph(affiliation['date_range'], style = itemDateStyle)],
-                          [Paragraph(affiliation['organization'] + ', ' + affiliation['department'], style = itemBodyStyle), '']]
+            table_data = [[Paragraph(section_heading, style = config['section_style']), ''],
+                          ['', ''],  # Padding for large config['section_style']
+                          [Paragraph(affiliation['role'], style = config['item_title_style']), Paragraph(affiliation['date_range'], style = config['item_date_style'])],
+                          [Paragraph(affiliation['organization'] + ', ' + affiliation['department'], style = config['item_body_style']), '']]
             table_style = [('SPAN', (0, 0), (-1, 0)),
                            ('LINEBELOW', (0, 1), (-1, 1), 2, colors.gray),
                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
@@ -264,21 +241,21 @@ def make_affiliation_table(style, affiliation, section_heading = ''):
     return table_data, table_style
 
 
-def make_work_table(style, work_title, work_body, work_date, section_heading = ''):
+def make_work_table(config, work_title, work_body, work_date, section_heading = ''):
     # Show as empty
     if work_date == 0:
         work_date = ''
 
-    if style.lower() == 'greenspon-default':
+    if config['style'] == 'greenspon-default':
         if section_heading == '':
-            table_data = [[Paragraph(work_title, style = itemTitleStyle), Paragraph(work_date, style = itemDateStyle)],
+            table_data = [[Paragraph(work_title, style = config['item_title_style']), Paragraph(work_date, style = config['item_date_style'])],
                           [work_body, '']]
             table_style = [('VALIGN', (0, 0), (-1, -1), 'TOP'),
                            ('NOSPLIT', (0, 0), (-1, -1))]  # ('GRID', (0,0), (-1, -1), 0.5, colors.gray)
         else:
-            table_data = [[Paragraph(section_heading, style = sectionStyle), ''],
-                          ['', ''],  # Padding for large sectionStyle
-                          [Paragraph(work_title, style = itemTitleStyle), Paragraph(work_date, style = itemDateStyle)],
+            table_data = [[Paragraph(section_heading, style = config['section_style']), ''],
+                          ['', ''],  # Padding for large config['section_style']
+                          [Paragraph(work_title, style = config['item_title_style']), Paragraph(work_date, style = config['item_date_style'])],
                           [work_body, '']]
             table_style = [('SPAN', (0, 0), (-1, 0)),
                            ('LINEBELOW', (0, 1), (-1, 1), 2, colors.gray),
@@ -293,21 +270,21 @@ def make_work_table(style, work_title, work_body, work_date, section_heading = '
 def process_external_links(link_dict):
     link_list = []
     for (k, v) in link_dict.items():
-        im_path = os.path.join(os.getcwd(), 'external_link_img', k + '.png')
+        im_path = os.path.join(package_directory, 'external_link_img', k + '.png')
         link_list.append(HyperlinkedImage(im_path, hyperlink = v, height = 15, width = 15))
     return link_list
 
 
-def add_person_section(elements, orcid_dict):
-    if orcid_dict['style'].lower() == 'greenspon-default':
+def add_person_section(elements, orcid_dict, config):
+    if config['style'] == 'greenspon-default':
         # Format table
-        column_widths = get_column_widths(style, 'person')
+        column_widths = get_column_widths(config, 'person')
         fullname = orcid_dict['personal']['fullname']
         person_summary = ('<br/>' +
                           orcid_dict['employment'][0]['role'] + '<br/>' +
                           orcid_dict['employment'][0]['organization'] + '<br/>' +
                           orcid_dict['personal']['email'])
-        table_data = [[Paragraph(fullname, style = personStyle), Paragraph(person_summary, style = personsummaryStyle)]]
+        table_data = [[Paragraph(fullname, style = config['person_title_style']), Paragraph(person_summary, style = config['person_summary_style'])]]
         table_style = [('NOSPLIT', (0, 0), (-1, -1)),
                        ('VALIGN', (0, 0), (-1, -1), 'TOP')]
         # Convert to table
@@ -322,14 +299,14 @@ def add_person_section(elements, orcid_dict):
         t = Table([link_list], colWidths = [20] * 1, hAlign='LEFT')
         t.setStyle(table_style)
         elements.append(t)
-        elements.append(Spacer(0, item_spacing))
+        elements.append(Spacer(0, config['item_spacing']))
     else:
         ValueError('Nope')
 
 
-def add_affiliation_section(elements, orcid_dict, heading, affiliation_type):
+def add_affiliation_section(elements, orcid_dict, config, heading, affiliation_type):
     # Compute column size
-    column_widths = get_column_widths(orcid_dict['style'], 'affiliation')
+    column_widths = get_column_widths(config, 'affiliation')
 
     # Get correct affiliation type
     if not orcid_dict.__contains__(affiliation_type):
@@ -343,22 +320,22 @@ def add_affiliation_section(elements, orcid_dict, heading, affiliation_type):
         # Process role
         # prepare table
         if is_heading:
-            table_data, table_style = make_affiliation_table(orcid_dict['style'], af, section_heading = heading)
+            table_data, table_style = make_affiliation_table(config, af, section_heading = heading)
             is_heading = False
         else:
-            table_data, table_style = make_affiliation_table(orcid_dict['style'], af)
+            table_data, table_style = make_affiliation_table(config, af)
 
         # Convert to table
         t = Table(table_data, colWidths = column_widths)
         t.setStyle(table_style)
         # Append
         elements.append(t)
-        elements.append(Spacer(0, item_spacing))
+        elements.append(Spacer(0, config['item_spacing']))
 
 
-def add_work_section(elements, orcid_dict, heading, search_str):
+def add_work_section(elements, orcid_dict, config, heading, search_str):
     # Compute column size
-    column_widths = get_column_widths(orcid_dict['style'], 'work')
+    column_widths = get_column_widths(config, 'work')
 
     # Get subset of publications
     works = [i for i in orcid_dict['work'] if i['type'] == search_str]
@@ -377,9 +354,9 @@ def add_work_section(elements, orcid_dict, heading, search_str):
         author_cat = ''
         if not work['authors'] == []:
             author_list = work['authors']
-            if initalize_authors:
+            if config['initalize_authors']:
                 author_list = [initalize_name(i) for i in author_list]
-            if embolden_author:
+            if config['embolden_author']:
                 author_list = embolden_authors(orcid_dict['personal'], author_list)
             if len(author_list) > 1:
                 author_list[-1] = 'and ' + author_list[-1]
@@ -389,74 +366,74 @@ def add_work_section(elements, orcid_dict, heading, search_str):
         # Process DOI/link
         doi_str = work['doi']
         if doi_str == '':  # Remove "," and go straight to author line
-            work_body = Paragraph(work['journal'] + '<br/>' + author_cat, style = itemBodyStyle)
+            work_body = Paragraph(work['journal'] + '<br/>' + author_cat, style = config['item_body_style'])
         elif 'doi.org/' in doi_str:
             idx = doi_str.find('doi.org/')
             short_doi = doi_str[idx + 8:]
             doi_str = '<link href="' + 'https://www.doi.org/' + short_doi + '">' + 'DOI: <u>' + short_doi + ' </u></link>'
-            work_body = Paragraph(work['journal'] + ', ' + doi_str + '<br/>' + author_cat, style = itemBodyStyle)
+            work_body = Paragraph(work['journal'] + ', ' + doi_str + '<br/>' + author_cat, style = config['item_body_style'])
         else:
             doi_str = '<link href="' + doi_str + '"><u>' + doi_str + ' </u></link>'
-            work_body = Paragraph(work['journal'] + ', ' + doi_str + '<br/>' + author_cat, style = itemBodyStyle)
+            work_body = Paragraph(work['journal'] + ', ' + doi_str + '<br/>' + author_cat, style = config['item_body_style'])
 
         # prepare table
         if is_heading:
-            table_data, table_style = make_work_table(orcid_dict['style'], work_title, work_body, work['year'], section_heading = heading)
+            table_data, table_style = make_work_table(config, work_title, work_body, work['year'], section_heading = heading)
             is_heading = False
         else:
-            table_data, table_style = make_work_table(orcid_dict['style'], work_title, work_body, work['year'], section_heading = '')
+            table_data, table_style = make_work_table(config, work_title, work_body, work['year'], section_heading = '')
 
         # Convert to table
         t = Table(table_data, colWidths = column_widths)
         t.setStyle(table_style)
         # Append
         elements.append(t)
-        elements.append(Spacer(0, item_spacing))
+        elements.append(Spacer(0, config['item_spacing']))
+
+
+def make_document_config(style):
+    if style == 'greenspon-default':
+        # Enable TTF fonts
+        pdfmetrics.registerFont(TTFont('GillSans', 'GIL_____.ttf'))
+        pdfmetrics.registerFont(TTFont('GillSansBold', 'GILB____.ttf'))
+        pdfmetrics.registerFontFamily('GillSans', normal = 'GillSans', bold = 'GillSansBold')
+        config = {'style': style.lower(),
+                  'pagesize': letter,
+                  'margin': 50,
+                  'item_spacing': 5,
+                  'initalize_authors': True,
+                  'embolden_author': True,
+                  'initalize_primary_author': True,
+                  'person_title_style': ParagraphStyle('PersonTitle', alignment = TA_LEFT, fontSize = 28, fontName = 'GillSansBold'),
+                  'person_summary_style': ParagraphStyle('PersonSummary', alignment = TA_RIGHT, fontSize = 9, fontName = 'GillSans'),
+                  'section_style': ParagraphStyle('SectionTitle', alignment = TA_LEFT, fontSize = 20, fontName = 'GillSansBold'),
+                  'item_title_style': ParagraphStyle('ItemTitle', alignment = TA_LEFT, fontSize = 11, fontName = 'GillSansBold'),
+                  'item_date_style': ParagraphStyle('ItemDate', alignment = TA_RIGHT, fontSize = 9, fontName = 'GillSansBold'),
+                  'item_body_style': ParagraphStyle('ItemBody', alignment = TA_LEFT, fontSize = 9, fontName = 'GillSans', underlineWidth = 1,
+                                                    underlineOffset = '-0.1*F')}
+    else:
+        ValueError('Invalid style')
+
+    return config
 
 
 def quick_build(orcid_dir, output_fname, style = 'greenspon-default'):
     orcid_dict = extract_orcid_info(orcid_dir)
-    orcid_dict['style'] = style
-    doc_title = orcid_info['personal']['fullname'] + ' - CV'
-    doc = SimpleDocTemplate(output_dir,
+    config = make_document_config(style)
+    doc_title = orcid_dict['personal']['fullname'] + ' - CV'
+    doc = SimpleDocTemplate(output_fname,
                             pagesize = letter,
-                            leftMargin = margin,
-                            rightMargin = margin,
-                            topMargin = margin,
-                            bottomMargin = margin,
+                            leftMargin = config['margin'],
+                            rightMargin = config['margin'],
+                            topMargin = config['margin'],
+                            bottomMargin = config['margin'],
                             title = doc_title)
     elements = []
-    add_person_section(elements, orcid_dict)
-    add_affiliation_section(elements, orcid_dict, 'Employment', 'employment')
-    add_affiliation_section(elements, orcid_dict, 'Education', 'education')
-    add_work_section(elements, orcid_dict, 'Research Publications', 'journal-article')
-    add_work_section(elements, orcid_dict, 'Talks', 'lecture-speech')
-    add_work_section(elements, orcid_dict, 'Preprints', 'preprint')
-    add_work_section(elements, orcid_dict, 'Book Chapters', 'book-chapter')
-    add_work_section(elements, orcid_dict, 'Software', 'software')
+    add_person_section(elements, orcid_dict, config)
+    add_affiliation_section(elements, orcid_dict, config, 'Employment', 'employment')
+    add_affiliation_section(elements, orcid_dict, config, 'Education', 'education')
+    add_work_section(elements, orcid_dict, config, 'Research Publications', 'journal-article')
+    add_work_section(elements, orcid_dict, config, 'Talks', 'lecture-speech')
+    add_work_section(elements, orcid_dict, config, 'Preprints', 'preprint')
     doc.build(elements)
     print('Success!')
-
-
-#%% Custom example
-orcid_dir = r"C:\Users\Somlab\Downloads\0000-0002-6806-3302"
-orcid_info = extract_orcid_info(orcid_dir)
-output_dir = r'C:\Users\Somlab\Downloads\test_resume.pdf'
-doc_title = orcid_info['personal']['fullname'] + ' - CV'
-doc = SimpleDocTemplate(output_dir,
-                        pagesize = letter,
-                        leftMargin = margin,
-                        rightMargin = margin,
-                        topMargin = margin,
-                        bottomMargin = margin,
-                        title = doc_title)
-elements = []
-add_person_section(elements, orcid_info)
-add_affiliation_section(elements, orcid_info, 'Employment', 'employment')
-add_affiliation_section(elements, orcid_info, 'Education', 'education')
-add_work_section(elements, orcid_info, 'Research Publications', 'journal-article')
-add_work_section(elements, orcid_info, 'Talks', 'lecture-speech')
-add_work_section(elements, orcid_info, 'Preprints', 'preprint')
-add_work_section(elements, orcid_info, 'Book Chapters', 'book-chapter')
-add_work_section(elements, orcid_info, 'Software', 'software')
-doc.build(elements)
