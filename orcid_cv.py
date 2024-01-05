@@ -88,6 +88,7 @@ def load_work(work_path):
     in_work_dict = in_work_dict['work:work']  # Everything is in this one field so just skip to it
     out_work_dict = {'type': in_work_dict['work:type'],  # This field is used for sorting entries and defines other behavior
                      'title': get_recursive_key(in_work_dict, 'work:title', 'common:title'),
+                     'subtitle': '',
                      'journal': get_recursive_key(in_work_dict, 'work:journal-title'),
                      'doi': get_recursive_key(in_work_dict, 'common:url'),
                      'year': get_recursive_key(in_work_dict, 'common:publication-date', 'common:year'),
@@ -118,10 +119,8 @@ def load_work(work_path):
                 out_work_dict['journal'] = url[:url.rfind('.')]
             except:
                 print('Could not lookup preprint: ' + out_work_dict['title'])
-
     elif out_work_dict['type'] == 'software':
-        out_work_dict['journal'] = get_recursive_key(in_work_dict, 'work:title', 'common:subtitle')
-
+        out_work_dict['subtitle'] = get_recursive_key(in_work_dict, 'work:title', 'common:subtitle')
     return out_work_dict
 
 
@@ -209,7 +208,7 @@ def get_column_widths(config, section_type):
         elif section_type == 'affiliation':
             ratio = 6
         elif section_type == 'person':
-            ratio = 4
+            ratio = 3.5
         else:
             ValueError('what')
     else:
@@ -346,10 +345,17 @@ def add_work_section(elements, orcid_dict, config, heading, search_str):
     # Iterate through list and make tables
     is_heading = True
     for work in works:
+        work_date = work['year']
+        work_journal = work['journal']
         # Process title
         work_title = work['title']
         if '‐' in work_title:  # Replace bad character
             work_title = work_title.replace('‐', '-')
+        # Swap journal and date for software
+        if work['type'] == 'software':
+            work_journal = work['subtitle']
+            work_date = work['journal']
+
         # Process author
         author_cat = ''
         if not work['authors'] == []:
@@ -366,22 +372,27 @@ def add_work_section(elements, orcid_dict, config, heading, search_str):
         # Process DOI/link
         doi_str = work['doi']
         if doi_str == '':  # Remove "," and go straight to author line
-            work_body = Paragraph(work['journal'] + '<br/>' + author_cat, style = config['item_body_style'])
+            work_body = Paragraph(work_journal + '<br/>' + author_cat, style = config['item_body_style'])
         elif 'doi.org/' in doi_str:
             idx = doi_str.find('doi.org/')
             short_doi = doi_str[idx + 8:]
             doi_str = '<link href="' + 'https://www.doi.org/' + short_doi + '">' + 'DOI: <u>' + short_doi + ' </u></link>'
-            work_body = Paragraph(work['journal'] + ', ' + doi_str + '<br/>' + author_cat, style = config['item_body_style'])
+            work_body = Paragraph(work_journal + ', ' + doi_str + '<br/>' + author_cat, style = config['item_body_style'])
+        elif 'github.com/' in doi_str:
+            idx = doi_str.find('github.com/')
+            short_doi = doi_str[idx + 11:]
+            doi_str = '<link href="' + 'https://www.github.com/' + short_doi + '">' + 'GitHub: <u>' + short_doi + ' </u></link>'
+            work_body = Paragraph(work_journal + ', ' + doi_str + '<br/>' + author_cat, style = config['item_body_style'])
         else:
             doi_str = '<link href="' + doi_str + '"><u>' + doi_str + ' </u></link>'
-            work_body = Paragraph(work['journal'] + ', ' + doi_str + '<br/>' + author_cat, style = config['item_body_style'])
+            work_body = Paragraph(work_journal + ', ' + doi_str + '<br/>' + author_cat, style = config['item_body_style'])
 
         # prepare table
         if is_heading:
-            table_data, table_style = make_work_table(config, work_title, work_body, work['year'], section_heading = heading)
+            table_data, table_style = make_work_table(config, work_title, work_body, work_date, section_heading = heading)
             is_heading = False
         else:
-            table_data, table_style = make_work_table(config, work_title, work_body, work['year'], section_heading = '')
+            table_data, table_style = make_work_table(config, work_title, work_body, work_date, section_heading = '')
 
         # Convert to table
         t = Table(table_data, colWidths = column_widths)
@@ -394,9 +405,9 @@ def add_work_section(elements, orcid_dict, config, heading, search_str):
 def make_document_config(style):
     if style.lower() == 'greenspon-default':
         # Enable TTF fonts
-        pdfmetrics.registerFont(TTFont('GillSans', 'GIL_____.ttf'))
-        pdfmetrics.registerFont(TTFont('GillSansBold', 'GILB____.ttf'))
-        pdfmetrics.registerFontFamily('GillSans', normal = 'GillSans', bold = 'GillSansBold')
+        # pdfmetrics.registerFont(TTFont('GillSans', 'GIL_____.TTF'))
+        # pdfmetrics.registerFont(TTFont('GillSansBold', 'GILB____.TTF'))
+        # pdfmetrics.registerFontFamily('GillSans', normal = 'GillSans', bold = 'GillSansBold')
         config = {'style': style.lower(),
                   'pagesize': letter,
                   'margin': 50,
@@ -404,12 +415,12 @@ def make_document_config(style):
                   'initalize_authors': True,
                   'embolden_author': True,
                   'initalize_primary_author': True,
-                  'person_title_style': ParagraphStyle('PersonTitle', alignment = TA_LEFT, fontSize = 28, fontName = 'GillSansBold'),
-                  'person_summary_style': ParagraphStyle('PersonSummary', alignment = TA_RIGHT, fontSize = 9, fontName = 'GillSans'),
-                  'section_style': ParagraphStyle('SectionTitle', alignment = TA_LEFT, fontSize = 20, fontName = 'GillSansBold'),
-                  'item_title_style': ParagraphStyle('ItemTitle', alignment = TA_LEFT, fontSize = 11, fontName = 'GillSansBold'),
-                  'item_date_style': ParagraphStyle('ItemDate', alignment = TA_RIGHT, fontSize = 9, fontName = 'GillSansBold'),
-                  'item_body_style': ParagraphStyle('ItemBody', alignment = TA_LEFT, fontSize = 9, fontName = 'GillSans', underlineWidth = 1,
+                  'person_title_style': ParagraphStyle('PersonTitle', alignment = TA_LEFT, fontSize = 28, fontName = 'Helvetica-Bold'),
+                  'person_summary_style': ParagraphStyle('PersonSummary', alignment = TA_RIGHT, fontSize = 9, fontName = 'Helvetica'),
+                  'section_style': ParagraphStyle('SectionTitle', alignment = TA_LEFT, fontSize = 20, fontName = 'Helvetica-Bold'),
+                  'item_title_style': ParagraphStyle('ItemTitle', alignment = TA_LEFT, fontSize = 11, fontName = 'Helvetica-Bold'),
+                  'item_date_style': ParagraphStyle('ItemDate', alignment = TA_RIGHT, fontSize = 9, fontName = 'Helvetica-Bold'),
+                  'item_body_style': ParagraphStyle('ItemBody', alignment = TA_LEFT, fontSize = 9, fontName = 'Helvetica', underlineWidth = 1,
                                                     underlineOffset = '-0.1*F')}
     else:
         ValueError('Invalid style')
