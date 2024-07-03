@@ -1,13 +1,14 @@
-import orcid_cv as ocv
 
 #%% Quick build
+import orcid_cv as ocv
 orcid_dir = r"C:\Users\somlab\Downloads\0000-0002-6806-3302"
-output_fname = r"C:\Users\somlab\Downloads\test_cv.pdf"
+output_fname = r"C:\Users\somlab\Downloads\test_cv_quickbuild.pdf"
 ocv.quick_build(orcid_dir, output_fname)
 
 #%% Custom example
+import orcid_cv as ocv
 orcid_dir = r"C:\Users\Somlab\Downloads\0000-0002-6806-3302"
-output_fname = r'C:\Users\Somlab\Downloads\test_resume.pdf'
+output_fname = r'C:\Users\Somlab\Downloads\test_cv_custom.pdf'
 orcid_dict = ocv.extract_orcid_info(orcid_dir)
 style = 'greenspon-default'
 config = ocv.make_document_config(style)

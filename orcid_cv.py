@@ -1,5 +1,6 @@
 import os
 import xmltodict
+import json
 import requests
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfbase.ttfonts import TTFont
@@ -117,6 +118,8 @@ def load_work(work_path):
                 slash_idx = url.find('/', start_idx)
                 url = url[start_idx:slash_idx]
                 out_work_dict['journal'] = url[:url.rfind('.')]
+                if 'rxiv' in out_work_dict['journal']:
+                    out_work_dict['journal'] = out_work_dict['journal'].replace('rxiv', 'Rxiv')
             except:
                 print('Could not lookup preprint: ' + out_work_dict['title'])
     elif out_work_dict['type'] == 'software':
@@ -125,6 +128,12 @@ def load_work(work_path):
 
 
 def extract_orcid_info(orcid_dir):
+    # First check if there is an ORCID.json file
+    if os.path.isfile(os.path.join(orcid_dir, 'ORCID.json')):
+        print('Loading ORCID dict from local json.')
+        with open(os.path.join(orcid_dir, 'ORCID.json')) as f:
+            return json.load(f)
+    
     # Personal info
     personal_info = load_xml(os.path.join(orcid_dir, "person.xml"))
     # Extract name
@@ -163,6 +172,14 @@ def extract_orcid_info(orcid_dir):
     for i in work_xml_list:
         out_work_dict = load_work(os.path.join(orcid_dir, 'works', i))
         work_list.append(out_work_dict)
+
+    # Write the json
+    print('Saving local json.')
+    with open(os.path.join(orcid_dir, 'ORCID.json'), 'w') as fp:
+        json.dump({'personal': personal,
+                   'work': work_list,
+                   'employment': employment_list,  
+                   'education': education_list}, fp, indent = 4)
 
     return {'personal': personal, 'work': work_list, 'employment': employment_list, 'education': education_list}
 
