@@ -352,9 +352,11 @@ def add_affiliation_section(elements, orcid_dict, config, heading, affiliation_t
 def add_work_section(elements, orcid_dict, config, heading, search_str):
     # Compute column size
     column_widths = get_column_widths(config, 'work')
+    if isinstance(search_str, str):
+        search_str = [search_str]
 
     # Get subset of publications
-    works = [i for i in orcid_dict['work'] if i['type'] == search_str]
+    works = [i for i in orcid_dict['work'] if i['type'] in search_str]
     if works == []:
         return ValueError('No matching works for: ' + search_str)
     works = sorted(works, key = lambda v: int(v['year']) * 1000 + int(v['month']), reverse = True)  # Sort by year then month
@@ -389,21 +391,26 @@ def add_work_section(elements, orcid_dict, config, heading, search_str):
         # Process DOI/link
         doi_str = work['doi']
         if doi_str == '':  # Remove "," and go straight to author line
-            work_body = Paragraph(work_journal + '<br/>' + author_cat, style = config['item_body_style'])
-        elif 'doi.org/' in doi_str:
-            idx = doi_str.find('doi.org/')
-            short_doi = doi_str[idx + 8:]
-            doi_str = '<link href="' + 'https://www.doi.org/' + short_doi + '">' + 'DOI: <u>' + short_doi + ' </u></link>'
-            work_body = Paragraph(work_journal + ', ' + doi_str + '<br/>' + author_cat, style = config['item_body_style'])
-        elif 'github.com/' in doi_str:
-            idx = doi_str.find('github.com/')
-            short_doi = doi_str[idx + 11:]
-            doi_str = '<link href="' + 'https://www.github.com/' + short_doi + '">' + 'GitHub: <u>' + short_doi + ' </u></link>'
-            work_body = Paragraph(work_journal + ', ' + doi_str + '<br/>' + author_cat, style = config['item_body_style'])
+            work_str = work_journal
         else:
-            doi_str = '<link href="' + doi_str + '"><u>' + doi_str + ' </u></link>'
-            work_body = Paragraph(work_journal + ', ' + doi_str + '<br/>' + author_cat, style = config['item_body_style'])
+            if 'doi.org/' in doi_str:
+                idx = doi_str.find('doi.org/')
+                short_doi = doi_str[idx + 8:]
+                doi_str = '<link href="' + 'https://www.doi.org/' + short_doi + '">' + 'DOI: <u>' + short_doi + ' </u></link>'
+            elif 'github.com/' in doi_str:
+                idx = doi_str.find('github.com/')
+                short_doi = doi_str[idx + 11:]
+                doi_str = '<link href="' + 'https://www.github.com/' + short_doi + '">' + 'GitHub: <u>' + short_doi + ' </u></link>'
+            else:
+                doi_str = '<link href="' + doi_str + '"><u>' + doi_str + ' </u></link>'
+            work_str = work_journal + ', ' + doi_str
 
+        # Add subtitle
+        if work['subtitle'] != '':
+            work_str = work_str + ', ' + work['subtitle']
+        
+        # Add formatting to work str
+        work_body = Paragraph(work_str + '<br/>' + author_cat, style = config['item_body_style'])
         # prepare table
         if is_heading:
             table_data, table_style = make_work_table(config, work_title, work_body, work_date, section_heading = heading)
