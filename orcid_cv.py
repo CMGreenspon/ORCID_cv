@@ -374,6 +374,7 @@ def add_work_section(elements, orcid_dict, config, heading, search_str):
         if work['type'] == 'software':
             work_journal = work['subtitle']
             work_date = work['journal']
+            work['subtitle'] = '' # Prevent duplications from custom subtitle fields
 
         # Process author
         author_cat = ''
