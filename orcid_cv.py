@@ -199,13 +199,13 @@ def embolden_authors(person, author_list):
     for (i, a) in enumerate(author_list):
         if person['lastname'] in a:
             embolden = False
-            if a == person['fullname']:
+            if person['fullname'] in a:
                 embolden = True
-            elif a == person['name-short']:
+            elif person['name-short'] in a:
                 embolden = True
-            elif a == person['firstname'] + ' ' + person['lastname']:
+            elif person['firstname'] + ' ' + person['lastname'] in a:
                 embolden = True
-            elif a == person['firstname'][0] + '. ' + person['lastname']:
+            elif person['firstname'][0] + '. ' + person['lastname'] in a:
                 embolden = True
             else:
                 print('Did not embolden: ' + a)
@@ -440,9 +440,9 @@ def make_document_config(style):
                   'initalize_authors': True,
                   'embolden_author': True,
                   'initalize_primary_author': True,
-                  'person_title_style': ParagraphStyle('PersonTitle', alignment = TA_LEFT, fontSize = 28, fontName = 'Helvetica-Bold'),
+                  'person_title_style': ParagraphStyle('PersonTitle', alignment = TA_LEFT, fontSize = 22, fontName = 'Helvetica-Bold'),
                   'person_summary_style': ParagraphStyle('PersonSummary', alignment = TA_RIGHT, fontSize = 9, fontName = 'Helvetica'),
-                  'section_style': ParagraphStyle('SectionTitle', alignment = TA_LEFT, fontSize = 20, fontName = 'Helvetica-Bold'),
+                  'section_style': ParagraphStyle('SectionTitle', alignment = TA_LEFT, fontSize = 18, fontName = 'Helvetica-Bold'),
                   'item_title_style': ParagraphStyle('ItemTitle', alignment = TA_LEFT, fontSize = 11, fontName = 'Helvetica-Bold'),
                   'item_date_style': ParagraphStyle('ItemDate', alignment = TA_RIGHT, fontSize = 9, fontName = 'Helvetica-Bold'),
                   'item_body_style': ParagraphStyle('ItemBody', alignment = TA_LEFT, fontSize = 9, fontName = 'Helvetica', underlineWidth = 1,
