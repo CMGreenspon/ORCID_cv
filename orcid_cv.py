@@ -2,6 +2,7 @@ import os
 import xmltodict
 import json
 import requests
+from copy import deepcopy
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
@@ -31,7 +32,12 @@ class HyperlinkedImage(Image, object):
 def load_xml(xml_path):
     with open(xml_path, encoding='utf-8') as xd:
         xml_dict = xmltodict.parse(xd.read())
-    return xml_dict
+    
+    # Remove top_level
+    if len(xml_dict.keys()) == 1:
+        return list(xml_dict.values())[0]
+    else:
+        raise Exception('XML dictionary has more than one top-level key')
 
 
 def list_works(orcid_dir):
@@ -61,13 +67,6 @@ def get_recursive_key(input_dict, *keys):
 def load_affiliation(affiliation_path):
     # Load and enter top level xml
     affiliation_xml = load_xml(affiliation_path)
-    if affiliation_xml.__contains__('education:education'):
-        affiliation_xml = affiliation_xml['education:education']
-    elif affiliation_xml.__contains__('employment:employment'):
-        affiliation_xml = affiliation_xml['employment:employment']
-    else:
-        ValueError('Unable to read affiliation .xml')
-
     # Extract common info
     affiliation_dict = {'organization': get_recursive_key(affiliation_xml, 'common:organization', 'common:name'),
                         'department': get_recursive_key(affiliation_xml, 'common:department-name'),
@@ -86,7 +85,6 @@ def load_affiliation(affiliation_path):
 def load_work(work_path):
     # Convert .xml to dictionary. Generically loads fields, styles determine later display
     in_work_dict = load_xml(work_path)
-    in_work_dict = in_work_dict['work:work']  # Everything is in this one field so just skip to it
     out_work_dict = {'type': in_work_dict['work:type'],  # This field is used for sorting entries and defines other behavior
                      'title': get_recursive_key(in_work_dict, 'work:title', 'common:title'),
                      'subtitle': '',
@@ -127,6 +125,40 @@ def load_work(work_path):
     return out_work_dict
 
 
+def load_funding(funding_path):
+    in_funding_dict = load_xml(funding_path)
+    out_funding_dict = {'title': get_recursive_key(in_funding_dict, 'funding:title', 'common:title'),
+                        'role': get_recursive_key(in_funding_dict, 'funding:organization-defined-type'),
+                        'org': get_recursive_key(in_funding_dict, 'common:organization', 'common:name'),
+                        'start_year': get_recursive_key(in_funding_dict, 'common:start-date', 'common:year'),
+                        'end_year': get_recursive_key(in_funding_dict, 'common:end-date', 'common:year'),
+                        'value': get_recursive_key(in_funding_dict, 'funding:amount', '#text')}
+    
+    return out_funding_dict
+    
+def load_review(review_path):
+    in_review_dict = load_xml(review_path)
+    # Parse IISN
+    issn = in_review_dict['peer-review:review-group-id'][5:]
+    r = requests.get(f"https://portal.issn.org/resource/ISSN/{issn}")
+    potential_name = ''
+    for l in r.iter_lines():
+        line = str(l)
+        if issn in line:
+            potential_name = line
+            idx = potential_name.find('|')
+            potential_name = potential_name[idx+2:-5]
+            break
+    if potential_name == '':
+        print(f"Could not identify ISSN {issn}")
+
+    # Make dict
+    out_review_dict = {'year': get_recursive_key(in_review_dict, 'peer-review:review-completion-date', 'common:year'),
+                       'role': get_recursive_key(in_review_dict, 'peer-review:review-type'),
+                       'org': potential_name.title()}
+    
+    return out_review_dict
+
 def extract_orcid_info(orcid_dir):
     # First check if there is an ORCID.json file
     if os.path.isfile(os.path.join(orcid_dir, 'ORCID.json')):
@@ -136,8 +168,6 @@ def extract_orcid_info(orcid_dir):
     
     # Personal info
     personal_info = load_xml(os.path.join(orcid_dir, "person.xml"))
-    # Extract name
-    personal_info = personal_info['person:person']
     personal = {'lastname': get_recursive_key(personal_info, 'person:name', 'personal-details:family-name'),
                 'givenname': get_recursive_key(personal_info, 'person:name', 'personal-details:given-names'),
                 'links': {'ORCID': 'https://orcid.org/' + get_recursive_key(personal_info, 'person:name', '@path')}}
@@ -154,34 +184,40 @@ def extract_orcid_info(orcid_dir):
     # Get primary email
     personal['email'] = [e['email:email'] for e in personal_info['email:emails']['email:email'] if e['@primary'] == 'true'][0]
 
-    # Employment
-    employment_list = []
-    affiliation_xml_list = os.listdir(os.path.join(orcid_dir, 'affiliations', 'employments'))
-    for i in affiliation_xml_list:
-        employment_list.append(load_affiliation(os.path.join(orcid_dir, 'affiliations', 'employments', i)))
+    # Parse XML folders to make dictionaries
+    employment_dict = folder_to_dict(os.path.join(orcid_dir, 'affiliations', 'employments'), load_affiliation)
+    education_dict = folder_to_dict(os.path.join(orcid_dir, 'affiliations', 'educations'), load_affiliation)
+    work_dict = folder_to_dict(os.path.join(orcid_dir, 'works'), load_work)
+    funding_dict = folder_to_dict(os.path.join(orcid_dir, 'fundings'), load_funding)
+    review_dict = folder_to_dict(os.path.join(orcid_dir, 'peer_reviews'), load_review)
 
-    # Education
-    education_list = []
-    education_xml_list = os.listdir(os.path.join(orcid_dir, 'affiliations', 'educations'))
-    for i in education_xml_list:
-        education_list.append(load_affiliation(os.path.join(orcid_dir, 'affiliations', 'educations', i)))
-
-    # Works
-    work_list = []
-    work_xml_list = os.listdir(os.path.join(orcid_dir, 'works'))
-    for i in work_xml_list:
-        out_work_dict = load_work(os.path.join(orcid_dir, 'works', i))
-        work_list.append(out_work_dict)
+    # Combine
+    out_dict = {'personal': personal,
+                'work': work_dict,
+                'employment': employment_dict,  
+                'education': education_dict,
+                'funding': funding_dict,
+                'reviews': review_dict}
 
     # Write the json
     print('Saving local json.')
     with open(os.path.join(orcid_dir, 'ORCID.json'), 'w') as fp:
-        json.dump({'personal': personal,
-                   'work': work_list,
-                   'employment': employment_list,  
-                   'education': education_list}, fp, indent = 4)
+        json.dump(out_dict, fp, indent = 4)
 
-    return {'personal': personal, 'work': work_list, 'employment': employment_list, 'education': education_list}
+    return out_dict
+
+
+def folder_to_dict(path, load_fun: callable) -> dict:
+    _dict = {}
+    xml_list = os.listdir(path)
+    for x in xml_list:
+        _dict[x[:-4]] = load_fun(os.path.join(path, x))
+    
+    return _dict
+
+
+def dict_to_list(input_dict: dict) -> list:
+    return [input_dict[k] for k in input_dict.keys()]
 
 
 def initalize_name(input_str):
@@ -295,10 +331,12 @@ def add_person_section(elements, orcid_dict, config):
     if config['style'] == 'greenspon-default':
         # Format table
         column_widths = get_column_widths(config, 'person')
+        info = dict_to_list(orcid_dict['employment'])
+        info = sorted(info, key = lambda v: int(v['start_date']), reverse = True)
         fullname = orcid_dict['personal']['fullname']
         person_summary = ('<br/>' +
-                          orcid_dict['employment'][0]['role'] + '<br/>' +
-                          orcid_dict['employment'][0]['organization'] + '<br/>' +
+                          info[0]['role'] + '<br/>' +
+                          info[0]['organization'] + '<br/>' +
                           orcid_dict['personal']['email'])
         table_data = [[Paragraph(fullname, style = config['person_title_style']), Paragraph(person_summary, style = config['person_summary_style'])]]
         table_style = [('NOSPLIT', (0, 0), (-1, -1)),
@@ -320,20 +358,21 @@ def add_person_section(elements, orcid_dict, config):
         ValueError('Nope')
 
 
-def add_affiliation_section(elements, orcid_dict, config, heading, affiliation_type):
+def add_affiliation_section(elements, orcid_dict: dict, config, heading, affiliation_type):
     # Compute column size
     column_widths = get_column_widths(config, 'affiliation')
 
     # Get correct affiliation type
     if not orcid_dict.__contains__(affiliation_type):
         return ValueError('Dict does not contain affiliation type: ' + affiliation_type)
-    affiliations = orcid_dict[affiliation_type]
-    affiliations = sorted(affiliations, key = lambda v: int(v['start_date']), reverse = True)  # Sort by year then month
-
+    
+    # Sort the affiliations
+    affiliations = dict_to_list(orcid_dict[affiliation_type])
+    affiliations = sorted(affiliations, key = lambda v: int(v['start_date']), reverse = True)
+    
     # Iterate through affiliations and make tables
     is_heading = True
     for af in affiliations:
-        # Process role
         # prepare table
         if is_heading:
             table_data, table_style = make_affiliation_table(config, af, section_heading = heading)
@@ -356,7 +395,8 @@ def add_work_section(elements, orcid_dict, config, heading, search_str):
         search_str = [search_str]
 
     # Get subset of publications
-    works = [i for i in orcid_dict['work'] if i['type'] in search_str]
+    works = dict_to_list(orcid_dict['work'])
+    works = [w for w in works if w['type'] in search_str]
     if works == []:
         return ValueError('No matching works for: ' + search_str)
     works = sorted(works, key = lambda v: int(v['year']) * 1000 + int(v['month']), reverse = True)  # Sort by year then month
@@ -388,6 +428,8 @@ def add_work_section(elements, orcid_dict, config, heading, search_str):
                 author_list[-1] = 'and ' + author_list[-1]
             if len(author_list) > 2:
                 author_cat = ', '.join(author_list)
+        if '‐' in author_cat:  # Replace bad character
+            author_cat = author_cat.replace('‐', '-')
 
         # Process DOI/link
         doi_str = work['doi']
