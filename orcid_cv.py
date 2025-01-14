@@ -319,6 +319,28 @@ def make_work_table(config, work_title, work_body, work_date, section_heading = 
     return table_data, table_style
 
 
+def make_funding_table(config, fund, section_heading = ''):
+    if config['style'] == 'greenspon-default':
+        if section_heading == '':
+            table_data = [[Paragraph(fund['title'], style = config['item_title_style']), Paragraph(fund['start_year'], style = config['item_date_style'])],
+                          [fund['org'], '']]
+            table_style = [('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                           ('NOSPLIT', (0, 0), (-1, -1))]  # ('GRID', (0,0), (-1, -1), 0.5, colors.gray)
+        else:
+            table_data = [[Paragraph(section_heading, style = config['section_style']), ''],
+                          ['', ''],  # Padding for large config['section_style']
+                          [Paragraph(fund['title'], style = config['item_title_style']), Paragraph(fund['start_year'], style = config['item_date_style'])],
+                          [fund['org'], '']]
+            table_style = [('SPAN', (0, 0), (-1, 0)),
+                           ('LINEBELOW', (0, 1), (-1, 1), 2, colors.gray),
+                           ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                           ('NOSPLIT', (0, 0), (-1, -1))]
+    else:
+        ValueError('Invalid style')
+
+    return table_data, table_style
+
+
 def process_external_links(link_dict):
     link_list = []
     for (k, v) in link_dict.items():
@@ -468,6 +490,31 @@ def add_work_section(elements, orcid_dict, config, heading, search_str):
         elements.append(t)
         elements.append(Spacer(0, config['item_spacing']))
 
+
+def add_funding_section(elements, orcid_dict, config, heading):
+    # Compute column size
+    column_widths = get_column_widths(config, 'affiliation')
+    
+    # Sort the fund
+    fund = dict_to_list(orcid_dict['funding'])
+    fund = sorted(fund, key = lambda v: int(v['start_year']), reverse = True)
+    
+    # Iterate through fund and make tables
+    is_heading = True
+    for f in fund:
+        # prepare table
+        if is_heading:
+            table_data, table_style = make_funding_table(config, f, section_heading = heading)
+            is_heading = False
+        else:
+            table_data, table_style = make_funding_table(config, f)
+
+        # Convert to table
+        t = Table(table_data, colWidths = column_widths)
+        t.setStyle(table_style)
+        # Append
+        elements.append(t)
+        elements.append(Spacer(0, config['item_spacing']))
 
 def make_document_config(style):
     if style.lower() == 'greenspon-default':
