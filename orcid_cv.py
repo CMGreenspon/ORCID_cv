@@ -3,6 +3,7 @@ import xmltodict
 import json
 import requests
 from copy import deepcopy
+from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
@@ -10,6 +11,7 @@ from reportlab.platypus import Paragraph, Spacer, Table, SimpleDocTemplate, Imag
 from reportlab.lib.enums import TA_LEFT, TA_RIGHT
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib import colors
+from datetime import datetime
 package_directory = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -250,6 +252,15 @@ def embolden_authors(person, author_list):
                 author_list[i] = ''.join(['<b>', a, '</b>'])
 
     return author_list
+
+
+def add_equal_author(author_list: list[str], num_first: int = 0, num_last: int = 0):
+    num_authors = len(author_list)
+    for i in range(1, len(author_list) + 1):
+        if i <= num_first:
+            author_list[i-1] += '*'
+        if i > num_authors-num_last:
+            author_list[i-1] += '*'
 
 
 def get_column_widths(config, section_type):
@@ -515,6 +526,39 @@ def add_funding_section(elements, orcid_dict, config, heading):
         # Append
         elements.append(t)
         elements.append(Spacer(0, config['item_spacing']))
+
+
+class FooterCanvas(canvas.Canvas):
+    left_str: str = ""
+
+    def __init__(self, *args, **kwargs):
+        canvas.Canvas.__init__(self, *args, **kwargs)
+        self.pages = []
+
+    def showPage(self):
+        self.pages.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        page_count = len(self.pages)
+        for page in self.pages:
+            self.__dict__.update(page)
+            self.draw_canvas(page_count)
+            canvas.Canvas.showPage(self)
+        canvas.Canvas.save(self)
+
+    def draw_canvas(self, page_count):
+        page = "Page %s of %s" % (self._pageNumber, page_count)
+        x = 100
+        self.saveState()
+        self.setStrokeColorRGB(0, 0, 0)
+        self.setLineWidth(0.5)
+        self.line(50, 78, letter[0] - 50, 78)
+        self.setFont('Helvetica', 9)
+        self.drawString(letter[0]-x, 65, page)
+        self.drawString(50, 65, datetime.today().strftime("%d-%b-%Y"))
+        self.restoreState()
+
 
 def make_document_config(style):
     if style.lower() == 'greenspon-default':
