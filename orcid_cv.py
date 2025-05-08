@@ -431,7 +431,7 @@ def add_work_section(elements, orcid_dict, config, heading, search_str):
     works = dict_to_list(orcid_dict['work'])
     works = [w for w in works if w['type'] in search_str]
     if works == []:
-        return ValueError('No matching works for: ' + search_str)
+        return ValueError(f"No matching works for: {search_str}")
     works = sorted(works, key = lambda v: int(v['year']) * 1000 + int(v['month']), reverse = True)  # Sort by year then month
 
     # Iterate through list and make tables
@@ -549,14 +549,14 @@ class FooterCanvas(canvas.Canvas):
 
     def draw_canvas(self, page_count):
         page = "Page %s of %s" % (self._pageNumber, page_count)
-        x = 100
+        y = 40
         self.saveState()
         self.setStrokeColorRGB(0, 0, 0)
         self.setLineWidth(0.5)
-        self.line(50, 78, letter[0] - 50, 78)
+        self.line(40, y + 10, letter[0] - 40, y + 10)
         self.setFont('Helvetica', 9)
-        self.drawString(letter[0]-x, 65, page)
-        self.drawString(50, 65, datetime.today().strftime("%d-%b-%Y"))
+        self.drawString(letter[0]-90, y, page)
+        self.drawString(40, y, datetime.today().strftime("%d-%b-%Y"))
         self.restoreState()
 
 
@@ -568,7 +568,7 @@ def make_document_config(style):
         # pdfmetrics.registerFontFamily('GillSans', normal = 'GillSans', bold = 'GillSansBold')
         config = {'style': style.lower(),
                   'pagesize': letter,
-                  'margin': 50,
+                  'margin': 40,
                   'item_spacing': 5,
                   'initalize_authors': True,
                   'embolden_author': True,
@@ -602,7 +602,7 @@ def quick_build(orcid_dir, output_fname, style = 'greenspon-default'):
     add_affiliation_section(elements, orcid_dict, config, 'Employment', 'employment')
     add_affiliation_section(elements, orcid_dict, config, 'Education', 'education')
     add_work_section(elements, orcid_dict, config, 'Research Publications', 'journal-article')
-    add_work_section(elements, orcid_dict, config, 'Talks', 'lecture-speech')
+    add_work_section(elements, orcid_dict, config, 'Talks', 'public-speech')
     add_work_section(elements, orcid_dict, config, 'Preprints', 'preprint')
     doc.build(elements)
     print('Success!')
