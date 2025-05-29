@@ -95,6 +95,14 @@ def load_work(work_path):
                      'year': get_recursive_key(in_work_dict, 'common:publication-date', 'common:year'),
                      'month': get_recursive_key(in_work_dict, 'common:publication-date', 'common:month'),
                      'authors': get_recursive_key(in_work_dict, 'work:contributors', 'work:contributor')}
+
+    # Get list of ids for cross-referencing duplicates
+    external_ids = get_recursive_key(in_work_dict, 'common:external-ids', 'common:external-id')
+    if isinstance(external_ids, list):
+        out_work_dict['external_ids'] = [d['common:external-id-value'] for d in external_ids if d['common:external-id-type'] == 'doi']
+    elif isinstance(external_ids, dict):
+        out_work_dict['external_ids'] = [external_ids['common:external-id-value']]
+
     # Check empty date for later sorting
     if out_work_dict['year'] == '':
         out_work_dict['year'] = 0
@@ -107,25 +115,132 @@ def load_work(work_path):
         elif isinstance(out_work_dict['authors'], list):
             out_work_dict['authors'] = [i['work:credit-name'] for i in out_work_dict['authors']]
 
-    # Journal / repository
-    if out_work_dict['type'] == 'preprint':
-        if not out_work_dict['doi'] == '':
-            try:
-                print('Trying to find host repository for article: ' + out_work_dict['title'])
-                doi_data = requests.get(out_work_dict['doi'])
-                url = doi_data.url
-                start_idx = url.find('www.') + 4
-                slash_idx = url.find('/', start_idx)
-                url = url[start_idx:slash_idx]
-                out_work_dict['journal'] = url[:url.rfind('.')]
-                if 'rxiv' in out_work_dict['journal']:
-                    out_work_dict['journal'] = out_work_dict['journal'].replace('rxiv', 'Rxiv')
-            except:
-                print('Could not lookup preprint: ' + out_work_dict['title'])
-    elif out_work_dict['type'] == 'software':
+    if out_work_dict['type'] == 'software':
         out_work_dict['subtitle'] = get_recursive_key(in_work_dict, 'work:title', 'common:subtitle')
     return out_work_dict
 
+def check_duplicates(input_dict):
+    # First flatten all external ids to check for duplicates
+    eids = []
+    titles = []
+    for di in input_dict.values():
+        if di['type'] not in ['preprint', 'journal-article']:
+            continue
+        eids += di['external_ids']
+        titles += [di['title']]
+
+    if len(eids) != len(set(eids)) or len(titles) != len(set(titles)):
+        return True
+    else:
+        return False
+
+def prune_duplicate_works(work_dict):
+    recursion_counter = 0
+    while check_duplicates(work_dict):
+        for ki, vi in work_dict.items():
+            if vi['type'] not in ['preprint', 'journal-article']:
+                continue
+            
+            for kj, vj in work_dict.items():
+                if vj['type'] not in ['preprint', 'journal-article']:
+                    continue
+
+                if kj == ki: # Skip same comparison
+                    continue
+                
+                keep_key = None
+                del_key = None
+
+                # If there are any matching ids, find more recent entry
+                if set(vi['external_ids']).intersection(set(vj['external_ids'])):
+                    print(f"Found duplicate for {vi['title']}")
+                    # Take newer year
+                    if vi['year'] != vj['year']:
+                        if int(vi['year']) > int(vj['year']):
+                            del_key = kj
+                            keep_key = ki
+                            break
+                        elif int(vi['year']) < int(vj['year']):
+                            del_key = ki
+                            keep_key = kj
+                            break
+                    
+                    # Take newer month
+                    if int(vi['year']) == int(vj['year']):
+                        if int(vi['month']) > int(vj['month']):
+                            del_key = kj
+                            keep_key = ki
+                            break
+                        elif int(vi['month']) < int(vj['month']):
+                            del_key = ki
+                            keep_key = kj
+                            break
+
+                    # Take longest id
+                    vi_len = max([len(eid) for eid in vi['external_ids']])
+                    vj_len = max([len(eid) for eid in vj['external_ids']])
+                    if vi_len > vj_len:
+                        del_key = kj
+                        keep_key = ki
+                        break
+                    elif vi_len < vj_len:
+                        del_key = ki
+                        keep_key = kj
+                        break
+
+                    # Take the longest DOI
+                    vi_len = len(vi['doi'])
+                    vj_len = len(vj['doi'])
+                    if vi_len > vj_len:
+                        del_key = kj
+                        keep_key = ki
+                        break
+                    elif vi_len < vj_len:
+                        del_key = ki
+                        keep_key = kj
+                        break
+            
+            # Need to break here so the merge happens before loop repeats
+            if del_key:
+                break
+
+        if del_key:
+            print(f"Merging {work_dict[del_key]['title']} into {work_dict[keep_key]['title']}")
+            work_dict[keep_key]['external_ids'] += work_dict[del_key]['external_ids']
+            work_dict[keep_key]['external_ids'] = list(set(work_dict[keep_key]['external_ids']))
+            del(work_dict[del_key])
+        else:
+            recursion_counter += 1
+            if recursion_counter > 10:
+                print('Failed to resolve all merges')
+                break
+
+    return work_dict
+
+def find_preprint_repository(work_dict):
+    for w in work_dict.values():
+        # Journal / repository
+        if w['type'] != 'preprint':
+            continue
+
+        if not w['doi'] == '':
+            print('Trying to find host repository for article: ' + w['title'])
+            if 'eLife' in w['doi']:
+                    w['journal'] = 'eLife'
+            else:
+                try:
+                    doi_data = requests.get(w['doi'])
+                    url = doi_data.url
+                    start_idx = url.find('www.') + 4
+                    slash_idx = url.find('/', start_idx)
+                    url = url[start_idx:slash_idx]
+                    w['journal'] = url[:url.rfind('.')]
+                    if 'rxiv' in w['journal']:
+                        w['journal'] = w['journal'].replace('rxiv', 'Rxiv')
+                except:
+                    print('Could not lookup preprint: ' + w['title'])
+
+    return work_dict
 
 def load_funding(funding_path):
     in_funding_dict = load_xml(funding_path)
@@ -192,6 +307,10 @@ def extract_orcid_info(orcid_dir):
     work_dict = folder_to_dict(os.path.join(orcid_dir, 'works'), load_work)
     funding_dict = folder_to_dict(os.path.join(orcid_dir, 'fundings'), load_funding)
     review_dict = folder_to_dict(os.path.join(orcid_dir, 'peer_reviews'), load_review)
+
+    # Check for duplicate work dicts & get repositories
+    work_dict = prune_duplicate_works(work_dict)
+    work_dict = find_preprint_repository(work_dict)
 
     # Combine
     out_dict = {'personal': personal,

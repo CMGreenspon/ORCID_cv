@@ -1,16 +1,16 @@
 #%% Load
 import orcid_cv as ocv
+from copy import deepcopy
 orcid_dir = r"C:\Users\Somlab\Downloads\0000-0002-6806-3302"
 orcid_dict = ocv.extract_orcid_info(orcid_dir)
-
 
 #%% Custom modifications
 # Add co-first/last authors
 ocv.add_equal_author(orcid_dict['work']['104077035']['authors'], 2)
 ocv.add_equal_author(orcid_dict['work']['117624833']['authors'], 2)
 ocv.add_equal_author(orcid_dict['work']['146346630']['authors'], 3)
-ocv.add_equal_author(orcid_dict['work']['181828994']['authors'], 0, 2)
-ocv.add_equal_author(orcid_dict['work']['163633584']['authors'], 0, 2)
+ocv.add_equal_author(orcid_dict['work']['184869731']['authors'], 0, 2)
+ocv.add_equal_author(orcid_dict['work']['184953056']['authors'], 0, 2)
 
 # Add R01 application
 orcid_dict['funding']['12345'] = {'title': 'Improving artificial tactile feedback using volumetric intracortical microstimulation',
@@ -20,7 +20,6 @@ orcid_dict['funding']['12345'] = {'title': 'Improving artificial tactile feedbac
                                               'end_year': '',
                                               'value': ''}
 
-orcid_dict['work']['181828994']['journal'] = 'eLife'
 #%% Export
 style = 'greenspon-default'
 config = ocv.make_document_config(style)
