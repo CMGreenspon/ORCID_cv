@@ -247,9 +247,10 @@ def load_funding(funding_path):
     out_funding_dict = {'title': get_recursive_key(in_funding_dict, 'funding:title', 'common:title'),
                         'role': get_recursive_key(in_funding_dict, 'funding:organization-defined-type'),
                         'org': get_recursive_key(in_funding_dict, 'common:organization', 'common:name'),
+                        'id': get_recursive_key(in_funding_dict, 'common:external-ids', 'common:external-id', 'common:external-id-value'),
                         'start_year': get_recursive_key(in_funding_dict, 'common:start-date', 'common:year'),
                         'end_year': get_recursive_key(in_funding_dict, 'common:end-date', 'common:year'),
-                        'value': get_recursive_key(in_funding_dict, 'funding:amount', '#text')}
+                        'value': get_recursive_key(in_funding_dict, 'common:external-ids', '#text')}
     
     return out_funding_dict
     
@@ -451,16 +452,18 @@ def make_work_table(config, work_title, work_body, work_date, section_heading = 
 
 def make_funding_table(config, fund, section_heading = ''):
     if config['style'] == 'greenspon-default':
+        fund_head = [Paragraph(fund['title'], style = config['item_title_style']), Paragraph(fund['start_year'], style = config['item_date_style'])]
+        fund_body = [f"{fund['org']}, {fund['id']}",  Paragraph(fund['role'], style = config['item_misc_style'])]
         if section_heading == '':
-            table_data = [[Paragraph(fund['title'], style = config['item_title_style']), Paragraph(fund['start_year'], style = config['item_date_style'])],
-                          [fund['org'], '']]
+            table_data = [fund_head,
+                          fund_body] 
             table_style = [('VALIGN', (0, 0), (-1, -1), 'TOP'),
                            ('NOSPLIT', (0, 0), (-1, -1))]  # ('GRID', (0,0), (-1, -1), 0.5, colors.gray)
         else:
             table_data = [[Paragraph(section_heading, style = config['section_style']), ''],
                           ['', ''],  # Padding for large config['section_style']
-                          [Paragraph(fund['title'], style = config['item_title_style']), Paragraph(fund['start_year'], style = config['item_date_style'])],
-                          [fund['org'], '']]
+                          fund_head,
+                          fund_body]
             table_style = [('SPAN', (0, 0), (-1, 0)),
                            ('LINEBELOW', (0, 1), (-1, 1), 2, colors.gray),
                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
@@ -697,6 +700,7 @@ def make_document_config(style):
                   'section_style': ParagraphStyle('SectionTitle', alignment = TA_LEFT, fontSize = 18, fontName = 'Helvetica-Bold'),
                   'item_title_style': ParagraphStyle('ItemTitle', alignment = TA_LEFT, fontSize = 11, fontName = 'Helvetica-Bold'),
                   'item_date_style': ParagraphStyle('ItemDate', alignment = TA_RIGHT, fontSize = 9, fontName = 'Helvetica-Bold'),
+                  'item_misc_style': ParagraphStyle('ItemMisc', alignment = TA_RIGHT, fontSize = 9, fontName = 'Helvetica'),
                   'item_body_style': ParagraphStyle('ItemBody', alignment = TA_LEFT, fontSize = 9, fontName = 'Helvetica', underlineWidth = 1,
                                                     underlineOffset = '-0.1*F')}
     else:

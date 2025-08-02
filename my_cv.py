@@ -12,13 +12,21 @@ ocv.add_equal_author(orcid_dict['work']['146346630']['authors'], 3)
 ocv.add_equal_author(orcid_dict['work']['184869731']['authors'], 0, 2)
 ocv.add_equal_author(orcid_dict['work']['184953056']['authors'], 0, 2)
 
-# Add R01 application
-orcid_dict['funding']['12345'] = {'title': 'Improving artificial tactile feedback using volumetric intracortical microstimulation',
-                                              'role': 'PI',
-                                              'org': 'National Institutes of Health - Scored (29th percentile)',
-                                              'start_year': '2025',
-                                              'end_year': '',
-                                              'value': ''}
+# Add pending applications
+orcid_dict['funding']['123456'] = {'title': 'Reshaping encoding and decoding algorithms for bidirectional brain-computer interfaces',
+                                            'role': 'CoI',
+                                            'org': 'National Institutes of Health',
+                                            'id': 'Pending',
+                                            'start_year': '2025',
+                                            'end_year': '',
+                                            'value': ''}
+orcid_dict['funding']['123466'] = {'title': 'Improving artificial tactile feedback using volumetric intracortical microstimulation',
+                                            'role': 'PI',
+                                            'org': 'National Institutes of Health',
+                                            'id': 'Pending',
+                                            'start_year': '2025',
+                                            'end_year': '',
+                                            'value': ''}
 
 #%% Export
 style = 'greenspon-default'
