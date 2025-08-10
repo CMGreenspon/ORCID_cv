@@ -393,6 +393,8 @@ def get_column_widths(config, section_type):
             ratio = 6
         elif section_type == 'person':
             ratio = 3.5
+        elif section_type == 'review':
+            ratio = 2
         else:
             ValueError('what')
     else:
@@ -468,6 +470,40 @@ def make_funding_table(config, fund, section_heading = ''):
                            ('LINEBELOW', (0, 1), (-1, 1), 2, colors.gray),
                            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                            ('NOSPLIT', (0, 0), (-1, -1))]
+    else:
+        ValueError('Invalid style')
+
+    return table_data, table_style
+
+def make_review_table(config, r, section_heading = ''):
+    if config['style'] == 'greenspon-default':
+        # Format columns
+        if r[1] > 1:
+            rev_body1 = f"{r[0]}, {r[1]} reviews"
+        else:
+            rev_body1 = f"{r[0]}, 1 review"
+        if r[3] == 0:
+            rev_body2 = ''
+        elif r[3] > 1:
+            rev_body2 = f"{r[2]}, {r[3]} reviews"
+        else:
+            rev_body2 = f"{r[2]}, 1 review"
+
+        # Make table
+        if section_heading == '':
+            table_data = [[rev_body1, rev_body2]] 
+            table_style = [('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                           ('NOSPLIT', (0, 0), (-1, -1)),
+                           ('HALIGN', (0, 0), (-1, -1), 'LEFT')]  # ('GRID', (0,0), (-1, -1), 0.5, colors.gray)
+        else:
+            table_data = [[Paragraph(section_heading, style = config['section_style']), ''],
+                          ['', ''],  # Padding for large config['section_style']
+                          [rev_body1, rev_body2]]
+            table_style = [('SPAN', (0, 0), (-1, 0)),
+                           ('LINEBELOW', (0, 1), (-1, 1), 2, colors.gray),
+                           ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                           ('NOSPLIT', (0, 0), (-1, -1)),
+                           ('HALIGN', (0, 0), (-1, -1), 'LEFT')]
     else:
         ValueError('Invalid style')
 
@@ -641,6 +677,43 @@ def add_funding_section(elements, orcid_dict, config, heading):
             is_heading = False
         else:
             table_data, table_style = make_funding_table(config, f)
+
+        # Convert to table
+        t = Table(table_data, colWidths = column_widths)
+        t.setStyle(table_style)
+        # Append
+        elements.append(t)
+        elements.append(Spacer(0, config['item_spacing']))
+
+def add_review_section(elements, orcid_dict, config, heading):
+    if not 'reviews' in orcid_dict.keys():
+        return
+    column_widths = get_column_widths(config, 'review')
+
+    # Count reviews per unique Org
+    review_dict = {}
+    for v in orcid_dict['reviews'].values():
+        if v['org'] in review_dict.keys():
+            review_dict[v['org']] += 1
+        else:
+            review_dict[v['org']] = 1
+
+    # Sort and make even for columns
+    sk = sorted(review_dict.keys())
+    if len(sk)%2 == 1:
+        sk.append('')
+        review_dict[''] = 0
+
+     # Iterate through fund and make tables
+    is_heading = True
+    for i in range(0, len(sk), 2):
+        # prepare table
+        if is_heading:
+            table_data, table_style = make_review_table(config, (sk[i],review_dict[sk[i]],sk[i+1],review_dict[sk[i+1]]),
+                                                         section_heading = heading)
+            is_heading = False
+        else:
+            table_data, table_style = make_review_table(config, (sk[i],review_dict[sk[i]],sk[i+1],review_dict[sk[i+1]]))
 
         # Convert to table
         t = Table(table_data, colWidths = column_widths)

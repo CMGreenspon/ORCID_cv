@@ -1,6 +1,5 @@
 #%% Load
 import orcid_cv as ocv
-from copy import deepcopy
 orcid_dir = r"C:\Users\Somlab\Downloads\0000-0002-6806-3302"
 orcid_dict = ocv.extract_orcid_info(orcid_dir)
 
@@ -48,7 +47,7 @@ ocv.add_affiliation_section(elements, orcid_dict, config, 'Education', 'educatio
 ocv.add_work_section(elements, orcid_dict, config, 'Research Publications', ['journal-article', 'preprint'])
 ocv.add_work_section(elements, orcid_dict, config, 'Talks', 'public-speech')
 ocv.add_funding_section(elements, orcid_dict, config, 'Funding')
-# ocv.add_review_section(elements, orcid_dict, config, 'Peer Review')
+ocv.add_review_section(elements, orcid_dict, config, 'Peer Review')
 ocv.add_work_section(elements, orcid_dict, config, 'Book Chapters', 'book-chapter')
 # ocv.add_work_section(elements, orcid_dict, config, 'Software', 'software')
 # doc.build(elements)
