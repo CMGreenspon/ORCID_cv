@@ -115,7 +115,7 @@ def load_work(work_path):
         elif isinstance(out_work_dict['authors'], list):
             out_work_dict['authors'] = [i['work:credit-name'] for i in out_work_dict['authors']]
 
-    if out_work_dict['type'] == 'software':
+    if out_work_dict['type'] in ['software', 'conference-presentation']:
         out_work_dict['subtitle'] = get_recursive_key(in_work_dict, 'work:title', 'common:subtitle')
     return out_work_dict
 
