@@ -30,9 +30,12 @@ orcid_dict['funding']['123466'] = {'title': 'Improving artificial tactile feedba
 
 # Add review that don't get added to ORCID
 orcid_dict['reviews']['1'] = {'org': 'Cerebral Cortex'}
-orcid_dict['reviews']['2'] = {'org': 'Journal of Neural Engineering'}
-orcid_dict['reviews']['3'] = {'org': 'Journal of Neural Engineering'}
-orcid_dict['reviews']['4'] = {'org': 'Journal of Neural Engineering'}
+
+# Replace some names
+for (k, v) in orcid_dict['reviews'].items():
+    if 'Proceedings Of The National Academy Of Sciences' in v['org']:
+        v['org'] = 'PNAS'
+
 
 #%% Export
 style = 'greenspon-default'
