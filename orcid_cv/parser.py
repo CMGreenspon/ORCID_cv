@@ -123,10 +123,15 @@ def load_work(work_path: str) -> Dict[str, Any]:
     else:
         out_work_dict["authors"] = []
 
+    # Random shuffling of keys
     if out_work_dict["type"] in ["software", "conference-presentation"]:
         out_work_dict["subtitle"] = get_recursive_key(
             in_work_dict, "work:title", "common:subtitle"
         )
+    
+    # Remove author from presentations
+    if out_work_dict["type"] in ["public-speech", "conference-presentation"]:
+        out_work_dict["authors"] = ""
         
     return out_work_dict
 

@@ -81,209 +81,54 @@ class FooterCanvas(canvas.Canvas):
         self.restoreState()
 
 
+def _ensure_renderer(config: Dict[str, Any]) -> None:
+    """Ensures that the style renderer is present in the configuration dictionary."""
+    if "renderer" not in config:
+        style = config.get("style", "")
+        if style == "greenspon-default":
+            from orcid_cv.styles import GreensponDefaultRenderer
+            config["renderer"] = GreensponDefaultRenderer(config)
+        else:
+            raise ValueError(f"Invalid style: {style}")
+
+
 def get_column_widths(config: Dict[str, Any], section_type: str) -> List[float]:
     """Computes column widths based on the selected design style."""
-    ratio = 1.0
-    table_width = int(config["pagesize"][0] - (config["margin"] * 2))
-    
-    if config["style"] == "greenspon-default":
-        if section_type == "work":
-            ratio = 7.0
-        elif section_type == "affiliation":
-            ratio = 6.0
-        elif section_type == "person":
-            ratio = 3.5
-        elif section_type == "review":
-            ratio = 2.0
-        else:
-            raise ValueError(f"Unknown section type: {section_type}")
-    else:
-        raise ValueError(f"Invalid style: {config['style']}")
-
-    right_col_width = round(table_width / ratio)
-    return [table_width - right_col_width, right_col_width]
+    _ensure_renderer(config)
+    return config["renderer"].get_column_widths(section_type)
 
 
 def make_affiliation_table(
     config: Dict[str, Any], affiliation: Dict[str, Any], section_heading: str = ""
 ) -> Tuple[List[List[Any]], List[Tuple[Any, ...]]]:
     """Generates the table data and layout styles for an affiliation entry."""
-    table_data = []
-    table_style = []
-    
-    if config["style"] == "greenspon-default":
-        if section_heading == "":
-            table_data = [
-                [
-                    Paragraph(affiliation["role"], style=config["item_title_style"]),
-                    Paragraph(affiliation["date_range"], style=config["item_date_style"]),
-                ],
-                [
-                    Paragraph(
-                        affiliation["organization"] + ", " + affiliation["department"],
-                        style=config["item_body_style"],
-                    ),
-                    "",
-                ],
-            ]
-            table_style = [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("NOSPLIT", (0, 0), (-1, -1)),
-            ]
-        else:
-            table_data = [
-                [Paragraph(section_heading, style=config["section_style"]), ""],
-                ["", ""],
-                [
-                    Paragraph(affiliation["role"], style=config["item_title_style"]),
-                    Paragraph(affiliation["date_range"], style=config["item_date_style"]),
-                ],
-                [
-                    Paragraph(
-                        affiliation["organization"] + ", " + affiliation["department"],
-                        style=config["item_body_style"],
-                    ),
-                    "",
-                ],
-            ]
-            table_style = [
-                ("SPAN", (0, 0), (-1, 0)),
-                ("LINEBELOW", (0, 1), (-1, 1), 2, colors.gray),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("NOSPLIT", (0, 0), (-1, -1)),
-            ]
-    else:
-        raise ValueError(f"Invalid style: {config['style']}")
-
-    return table_data, table_style
+    _ensure_renderer(config)
+    return config["renderer"].make_affiliation_table(affiliation, section_heading)
 
 
 def make_work_table(
     config: Dict[str, Any], work_title: str, work_body: Paragraph, work_date: str, section_heading: str = ""
 ) -> Tuple[List[List[Any]], List[Tuple[Any, ...]]]:
     """Generates the table data and layout styles for a publication/work entry."""
-    table_data = []
-    table_style = []
-    
-    if work_date == 0 or work_date == "0":
-        work_date = ""
-
-    if config["style"] == "greenspon-default":
-        if section_heading == "":
-            table_data = [
-                [
-                    Paragraph(work_title, style=config["item_title_style"]),
-                    Paragraph(str(work_date), style=config["item_date_style"]),
-                ],
-                [work_body, ""],
-            ]
-            table_style = [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("NOSPLIT", (0, 0), (-1, -1)),
-            ]
-        else:
-            table_data = [
-                [Paragraph(section_heading, style=config["section_style"]), ""],
-                ["", ""],
-                [
-                    Paragraph(work_title, style=config["item_title_style"]),
-                    Paragraph(str(work_date), style=config["item_date_style"]),
-                ],
-                [work_body, ""],
-            ]
-            table_style = [
-                ("SPAN", (0, 0), (-1, 0)),
-                ("LINEBELOW", (0, 1), (-1, 1), 2, colors.gray),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("NOSPLIT", (0, 0), (-1, -1)),
-            ]
-    else:
-        raise ValueError(f"Invalid style: {config['style']}")
-
-    return table_data, table_style
+    _ensure_renderer(config)
+    return config["renderer"].make_work_table(work_title, work_body, work_date, section_heading)
 
 
 def make_funding_table(
     config: Dict[str, Any], fund: Dict[str, Any], section_heading: str = ""
 ) -> Tuple[List[List[Any]], List[Tuple[Any, ...]]]:
     """Generates the table data and layout styles for a funding entry."""
-    table_data = []
-    table_style = []
-    
-    if config["style"] == "greenspon-default":
-        fund_head = [
-            Paragraph(fund["title"], style=config["item_title_style"]),
-            Paragraph(fund["start_year"], style=config["item_date_style"]),
-        ]
-        fund_body = [
-            f"{fund['org']}, {fund['id']}",
-            Paragraph(fund["role"], style=config["item_misc_style"]),
-        ]
-        if section_heading == "":
-            table_data = [fund_head, fund_body]
-            table_style = [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("NOSPLIT", (0, 0), (-1, -1)),
-            ]
-        else:
-            table_data = [
-                [Paragraph(section_heading, style=config["section_style"]), ""],
-                ["", ""],
-                fund_head,
-                fund_body,
-            ]
-            table_style = [
-                ("SPAN", (0, 0), (-1, 0)),
-                ("LINEBELOW", (0, 1), (-1, 1), 2, colors.gray),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("NOSPLIT", (0, 0), (-1, -1)),
-            ]
-    else:
-        raise ValueError(f"Invalid style: {config['style']}")
-
-    return table_data, table_style
+    _ensure_renderer(config)
+    return config["renderer"].make_funding_table(fund, section_heading)
 
 
 def make_review_table(
     config: Dict[str, Any], r: Tuple[str, int, str, int], section_heading: str = ""
 ) -> Tuple[List[List[Any]], List[Tuple[Any, ...]]]:
     """Generates the table data and layout styles for a peer review entry."""
-    table_data = []
-    table_style = []
-    
-    if config["style"] == "greenspon-default":
-        # Format columns
-        rev_body1 = f"{r[0]}, {r[1]} reviews" if r[1] > 1 else f"{r[0]}, 1 review"
-        
-        if r[3] == 0:
-            rev_body2 = ""
-        else:
-            rev_body2 = f"{r[2]}, {r[3]} reviews" if r[3] > 1 else f"{r[2]}, 1 review"
+    _ensure_renderer(config)
+    return config["renderer"].make_review_table(r, section_heading)
 
-        if section_heading == "":
-            table_data = [[rev_body1, rev_body2]]
-            table_style = [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("NOSPLIT", (0, 0), (-1, -1)),
-                ("HALIGN", (0, 0), (-1, -1), "LEFT"),
-            ]
-        else:
-            table_data = [
-                [Paragraph(section_heading, style=config["section_style"]), ""],
-                ["", ""],
-                [rev_body1, rev_body2],
-            ]
-            table_style = [
-                ("SPAN", (0, 0), (-1, 0)),
-                ("LINEBELOW", (0, 1), (-1, 1), 2, colors.gray),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("NOSPLIT", (0, 0), (-1, -1)),
-                ("HALIGN", (0, 0), (-1, -1), "LEFT"),
-            ]
-    else:
-        raise ValueError(f"Invalid style: {config['style']}")
-
-    return table_data, table_style
 
 
 def process_external_links(link_dict: Dict[str, str]) -> List[HyperlinkedImage]:
@@ -300,51 +145,9 @@ def process_external_links(link_dict: Dict[str, str]) -> List[HyperlinkedImage]:
 
 def add_person_section(elements: List[Any], orcid_dict: Dict[str, Any], config: Dict[str, Any]) -> None:
     """Appends the name, title, current affiliation, email, and social links to the CV flowables."""
-    if config["style"] == "greenspon-default":
-        column_widths = get_column_widths(config, "person")
-        info = dict_to_list(orcid_dict["employment"])
-        
-        # Sort by start_date to find current role
-        try:
-            info = sorted(info, key=lambda v: int(v.get("start_date", 0)), reverse=True)
-        except (ValueError, TypeError):
-            pass
-            
-        fullname = orcid_dict["personal"]["fullname"]
-        
-        if info:
-            current_role = info[0].get("role", "")
-            current_org = info[0].get("organization", "")
-            person_summary = f"<br/>{current_role}<br/>{current_org}<br/>{orcid_dict['personal']['email']}"
-        else:
-            person_summary = f"<br/>{orcid_dict['personal']['email']}"
-            
-        table_data = [
-            [
-                Paragraph(fullname, style=config["person_title_style"]),
-                Paragraph(person_summary, style=config["person_summary_style"]),
-            ]
-        ]
-        table_style = [
-            ("NOSPLIT", (0, 0), (-1, -1)),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ]
-        
-        t = Table(table_data, colWidths=column_widths)
-        t.setStyle(table_style)
-        elements.append(t)
-        elements.append(Spacer(0, -15))
+    _ensure_renderer(config)
+    config["renderer"].add_person_section(elements, orcid_dict)
 
-        # Add links
-        link_list = process_external_links(orcid_dict["personal"]["links"])
-        if link_list:
-            t = Table([link_list], colWidths=[20] * len(link_list), hAlign="LEFT")
-            t.setStyle(table_style)
-            elements.append(t)
-            
-        elements.append(Spacer(0, config["item_spacing"]))
-    else:
-        raise ValueError(f"Invalid style: {config['style']}")
 
 
 def add_affiliation_section(

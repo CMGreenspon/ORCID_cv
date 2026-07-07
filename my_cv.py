@@ -9,7 +9,7 @@ orcid_dict = ocv.extract_orcid_info(orcid_dir)
 ocv.add_equal_author(orcid_dict["work"]["104077035"]["authors"], 2)
 ocv.add_equal_author(orcid_dict["work"]["117624833"]["authors"], 2)
 ocv.add_equal_author(orcid_dict["work"]["146346630"]["authors"], 3)
-# ocv.add_equal_author(orcid_dict['work']['181828994']['authors'], 0, 2)
+ocv.add_equal_author(orcid_dict['work']['217401609']['authors'], 0, 2)
 ocv.add_equal_author(orcid_dict["work"]["184953056"]["authors"], 0, 2)
 ocv.add_equal_author(orcid_dict["work"]["189765308"]["authors"], 2)
 

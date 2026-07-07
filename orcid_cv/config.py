@@ -50,6 +50,8 @@ def make_document_config(style: str) -> Dict[str, Any]:
                 underlineOffset="-0.1*F",
             ),
         }
+        from orcid_cv.styles import GreensponDefaultRenderer
+        config["renderer"] = GreensponDefaultRenderer(config)
     else:
         raise ValueError(f"Invalid style: {style}")
 
