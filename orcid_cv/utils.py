@@ -15,17 +15,17 @@ def initialize_name(input_str: str) -> str:
     """
     if not input_str or not input_str.strip():
         return ""
-    
+
     str_split = [part for part in input_str.split(" ") if part]
     if len(str_split) <= 1:
         return input_str
-    
+
     for i in range(len(str_split) - 1):
         part = str_split[i]
         if "." in part:
             continue
         str_split[i] = part[0] + "."
-        
+
     first_parts = "".join(str_split[:-1])
     return f"{first_parts} {str_split[-1]}"
 
@@ -36,37 +36,47 @@ def initalize_name(input_str: str) -> str:
     return initialize_name(input_str)
 
 
+def is_self_author(person: Dict[str, Any], author: str) -> bool:
+    """
+    Returns True if an author string refers to the CV's owner. Markup-agnostic so
+    that every rendering backend can decide how to highlight the name.
+    """
+    lastname = person.get("lastname", "")
+    if not lastname or lastname not in author:
+        return False
+
+    fullname = person.get("fullname", "")
+    name_short = person.get("name-short", "")
+    firstname = person.get("firstname", "")
+
+    if fullname in author:
+        return True
+    if name_short in author:
+        return True
+    if f"{firstname} {lastname}" in author:
+        return True
+    if f"{firstname[0] if firstname else ''}. {lastname}" in author:
+        return True
+
+    logger.info(f"Did not embolden: {author}")
+    return False
+
+
 def embolden_authors(person: Dict[str, Any], author_list: List[str]) -> List[str]:
     """
     Emboldens the target person's name in a list of author names by wrapping
     it in HTML <b> tags.
     """
-    lastname = person.get("lastname", "")
-    fullname = person.get("fullname", "")
-    name_short = person.get("name-short", "")
-    firstname = person.get("firstname", "")
-    
     for i, author in enumerate(author_list):
-        if lastname in author:
-            embolden = False
-            if fullname in author:
-                embolden = True
-            elif name_short in author:
-                embolden = True
-            elif f"{firstname} {lastname}" in author:
-                embolden = True
-            elif f"{firstname[0] if firstname else ''}. {lastname}" in author:
-                embolden = True
-            else:
-                logger.info(f"Did not embolden: {author}")
-                
-            if embolden:
-                author_list[i] = f"<b>{author}</b>"
-                
+        if is_self_author(person, author):
+            author_list[i] = f"<b>{author}</b>"
+
     return author_list
 
 
-def add_equal_author(author_list: List[str], num_first: int = 0, num_last: int = 0) -> None:
+def add_equal_author(
+    author_list: List[str], num_first: int = 0, num_last: int = 0
+) -> None:
     """
     Appends an asterisk (*) to the names of the first `num_first` and last
     `num_last` authors to indicate equal contribution.
@@ -86,10 +96,10 @@ def get_recursive_key(input_dict: Dict[str, Any], *keys: str) -> Any:
     """
     if not isinstance(input_dict, dict):
         raise TypeError("first argument must be a dict.")
-        
+
     if len(keys) == 0 or not all(isinstance(k, str) for k in keys):
         raise TypeError("Keys must all be of type 'str'.")
-        
+
     _dict = input_dict
     for key in keys:
         if isinstance(_dict, dict) and key in _dict and _dict[key] is not None:
@@ -98,7 +108,7 @@ def get_recursive_key(input_dict: Dict[str, Any], *keys: str) -> Any:
             put_code = input_dict.get("@put-code", "unknown")
             logger.info(f"Could not find: {'-'.join(keys)} in item #{put_code}")
             return ""
-            
+
     return _dict
 
 

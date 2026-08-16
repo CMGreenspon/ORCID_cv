@@ -9,7 +9,7 @@ orcid_dict = ocv.extract_orcid_info(orcid_dir)
 ocv.add_equal_author(orcid_dict["work"]["104077035"]["authors"], 2)
 ocv.add_equal_author(orcid_dict["work"]["117624833"]["authors"], 2)
 ocv.add_equal_author(orcid_dict["work"]["146346630"]["authors"], 3)
-ocv.add_equal_author(orcid_dict['work']['217401609']['authors'], 0, 2)
+ocv.add_equal_author(orcid_dict["work"]["217401609"]["authors"], 0, 2)
 ocv.add_equal_author(orcid_dict["work"]["184953056"]["authors"], 0, 2)
 ocv.add_equal_author(orcid_dict["work"]["189765308"]["authors"], 2)
 
@@ -35,21 +35,14 @@ for k, v in orcid_dict["reviews"].items():
 
 # %% Export
 style = "greenspon-default"
-config = ocv.make_document_config(style)
+backend = "reportlab"  # or "typst"
+config = ocv.make_document_config(style, backend=backend)
+config["page_footer"] = True
 output_fname = (
     r"C:\Users\somlab\OneDrive - The University of Chicago\Miscellaneous\CMG_CV.pdf"
 )
 # output_fname = r"C:\Users\Somlab\Downloads\test.pdf"
 doc_title = orcid_dict["personal"]["fullname"] + " - CV"
-doc = ocv.SimpleDocTemplate(
-    output_fname,
-    pagesize=ocv.letter,
-    leftMargin=config["margin"],
-    rightMargin=config["margin"],
-    topMargin=config["margin"],
-    bottomMargin=config["margin"] + 10,
-    title=doc_title,
-)
 elements = []
 ocv.add_person_section(elements, orcid_dict, config)
 ocv.add_affiliation_section(elements, orcid_dict, config, "Employment", "employment")
@@ -73,8 +66,13 @@ ocv.add_funding_section(elements, orcid_dict, config, "Funding")
 ocv.add_review_section(elements, orcid_dict, config, "Peer Review")
 ocv.add_work_section(elements, orcid_dict, config, "Book Chapters", "book-chapter")
 # ocv.add_work_section(elements, orcid_dict, config, 'Software', 'software')
-# doc.build(elements)
-doc.multiBuild(elements, canvasmaker=ocv.FooterCanvas)
+ocv.build_document(
+    output_fname,
+    elements,
+    config,
+    title=doc_title,
+    author=orcid_dict["personal"]["fullname"],
+)
 
 # %% Papers only
 # Add stars to some titles
@@ -94,18 +92,10 @@ for w in wlist:
 
 
 style = "greenspon-default"
-config = ocv.make_document_config(style)
+config = ocv.make_document_config(style, backend=backend)
+config["page_footer"] = True
 output_fname = r"C:\Users\Somlab\Downloads\CMG_Papers.pdf"
 doc_title = orcid_dict["personal"]["fullname"] + " - CV"
-doc = ocv.SimpleDocTemplate(
-    output_fname,
-    pagesize=ocv.letter,
-    leftMargin=config["margin"],
-    rightMargin=config["margin"],
-    topMargin=config["margin"],
-    bottomMargin=config["margin"] + 10,
-    title=doc_title,
-)
 elements = []
 ocv.add_work_section(
     elements,
@@ -114,4 +104,10 @@ ocv.add_work_section(
     "Research Publications",
     ["journal-article", "preprint"],
 )
-doc.multiBuild(elements, canvasmaker=ocv.FooterCanvas)
+ocv.build_document(
+    output_fname,
+    elements,
+    config,
+    title=doc_title,
+    author=orcid_dict["personal"]["fullname"],
+)

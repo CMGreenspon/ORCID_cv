@@ -5,12 +5,13 @@ from orcid_cv.utils import (
     initialize_name,
     initalize_name,
     embolden_authors,
+    is_self_author,
     add_equal_author,
     get_recursive_key,
     dict_to_list,
 )
 
-from orcid_cv.config import make_document_config
+from orcid_cv.config import make_document_config, BACKENDS
 
 from orcid_cv.parser import (
     load_xml,
@@ -24,6 +25,16 @@ from orcid_cv.parser import (
     load_review,
     extract_orcid_info,
     folder_to_dict,
+)
+
+from orcid_cv.content import (
+    prepare_person,
+    prepare_affiliations,
+    prepare_works,
+    prepare_funding,
+    prepare_reviews,
+    format_review,
+    join_authors,
 )
 
 from orcid_cv.builder import (
@@ -40,8 +51,14 @@ from orcid_cv.builder import (
     add_work_section,
     add_funding_section,
     add_review_section,
+    build_document,
     quick_build,
 )
+
+# The typst backend is reached through the functions above by passing
+# backend="typst" to make_document_config; the module is exposed for direct use.
+from orcid_cv import typst_builder
+from orcid_cv.typst_builder import assemble_source
 
 # Re-exposing reportlab utilities for backward compatibility
 from reportlab.platypus import SimpleDocTemplate
@@ -52,10 +69,12 @@ __all__ = [
     "initialize_name",
     "initalize_name",
     "embolden_authors",
+    "is_self_author",
     "add_equal_author",
     "get_recursive_key",
     "dict_to_list",
     "make_document_config",
+    "BACKENDS",
     "load_xml",
     "list_works",
     "load_affiliation",
@@ -67,6 +86,13 @@ __all__ = [
     "load_review",
     "extract_orcid_info",
     "folder_to_dict",
+    "prepare_person",
+    "prepare_affiliations",
+    "prepare_works",
+    "prepare_funding",
+    "prepare_reviews",
+    "format_review",
+    "join_authors",
     "HyperlinkedImage",
     "FooterCanvas",
     "get_column_widths",
@@ -80,7 +106,10 @@ __all__ = [
     "add_work_section",
     "add_funding_section",
     "add_review_section",
+    "build_document",
     "quick_build",
+    "typst_builder",
+    "assemble_source",
     "SimpleDocTemplate",
     "letter",
 ]

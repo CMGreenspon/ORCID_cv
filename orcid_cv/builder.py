@@ -6,21 +6,35 @@ from typing import List, Dict, Any, Tuple, Union
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import Paragraph, Spacer, Table, SimpleDocTemplate, Image
-from reportlab.lib import colors
 
-from orcid_cv.utils import (
-    package_directory,
-    dict_to_list,
-    initialize_name,
-    embolden_authors,
+from orcid_cv.utils import package_directory
+from orcid_cv.content import (
+    join_authors,
+    prepare_affiliations,
+    prepare_funding,
+    prepare_reviews,
+    prepare_works,
 )
 from orcid_cv.parser import extract_orcid_info
 
 logger = logging.getLogger("orcid_cv")
 
 
+def _typst_delegate(config: Dict[str, Any], function_name: str):
+    """
+    Returns the typst implementation of `function_name` when the config asks for
+    the typst backend, otherwise None so the caller renders with reportlab.
+    """
+    if config.get("backend", "reportlab") == "typst":
+        from orcid_cv import typst_builder
+
+        return getattr(typst_builder, function_name)
+    return None
+
+
 class HyperlinkedImage(Image, object):
     """An Image subclass that overlays a clickable hyperlink on the rendered PDF canvas."""
+
     def __init__(
         self,
         filename: str,
@@ -50,6 +64,7 @@ class HyperlinkedImage(Image, object):
 
 class FooterCanvas(canvas.Canvas):
     """Custom canvas that captures page attributes to draw a 'Page X of Y' footer on save."""
+
     left_str: str = ""
 
     def __init__(self, *args, **kwargs):
@@ -87,6 +102,7 @@ def _ensure_renderer(config: Dict[str, Any]) -> None:
         style = config.get("style", "")
         if style == "greenspon-default":
             from orcid_cv.styles import GreensponDefaultRenderer
+
             config["renderer"] = GreensponDefaultRenderer(config)
         else:
             raise ValueError(f"Invalid style: {style}")
@@ -107,11 +123,17 @@ def make_affiliation_table(
 
 
 def make_work_table(
-    config: Dict[str, Any], work_title: str, work_body: Paragraph, work_date: str, section_heading: str = ""
+    config: Dict[str, Any],
+    work_title: str,
+    work_body: Paragraph,
+    work_date: str,
+    section_heading: str = "",
 ) -> Tuple[List[List[Any]], List[Tuple[Any, ...]]]:
     """Generates the table data and layout styles for a publication/work entry."""
     _ensure_renderer(config)
-    return config["renderer"].make_work_table(work_title, work_body, work_date, section_heading)
+    return config["renderer"].make_work_table(
+        work_title, work_body, work_date, section_heading
+    )
 
 
 def make_funding_table(
@@ -130,43 +152,46 @@ def make_review_table(
     return config["renderer"].make_review_table(r, section_heading)
 
 
-
 def process_external_links(link_dict: Dict[str, str]) -> List[HyperlinkedImage]:
     """Converts a dictionary of website titles and URLs into hyperlinked image flowables."""
     link_list = []
     for k, v in link_dict.items():
         im_path = os.path.join(package_directory, "external_link_img", f"{k}.png")
         if os.path.exists(im_path):
-            link_list.append(HyperlinkedImage(im_path, hyperlink=v, height=15, width=15))
+            link_list.append(
+                HyperlinkedImage(im_path, hyperlink=v, height=15, width=15)
+            )
         else:
             logger.warning(f"External link image missing at {im_path}")
     return link_list
 
 
-def add_person_section(elements: List[Any], orcid_dict: Dict[str, Any], config: Dict[str, Any]) -> None:
+def add_person_section(
+    elements: List[Any], orcid_dict: Dict[str, Any], config: Dict[str, Any]
+) -> None:
     """Appends the name, title, current affiliation, email, and social links to the CV flowables."""
+    typst = _typst_delegate(config, "add_person_section")
+    if typst:
+        return typst(elements, orcid_dict, config)
+
     _ensure_renderer(config)
     config["renderer"].add_person_section(elements, orcid_dict)
 
 
-
 def add_affiliation_section(
-    elements: List[Any], orcid_dict: Dict[str, Any], config: Dict[str, Any], heading: str, affiliation_type: str
+    elements: List[Any],
+    orcid_dict: Dict[str, Any],
+    config: Dict[str, Any],
+    heading: str,
+    affiliation_type: str,
 ) -> None:
     """Appends employments or educations as a stylized table to the CV flowables."""
+    typst = _typst_delegate(config, "add_affiliation_section")
+    if typst:
+        return typst(elements, orcid_dict, config, heading, affiliation_type)
+
     column_widths = get_column_widths(config, "affiliation")
-
-    if affiliation_type not in orcid_dict:
-        logger.warning(f"Dict does not contain affiliation type: {affiliation_type}")
-        return
-
-    affiliations = dict_to_list(orcid_dict[affiliation_type])
-    try:
-        affiliations = sorted(
-            affiliations, key=lambda v: int(v.get("start_date", 0)), reverse=True
-        )
-    except (ValueError, TypeError):
-        pass
+    affiliations = prepare_affiliations(orcid_dict, affiliation_type)
 
     is_heading = True
     for af in affiliations:
@@ -185,90 +210,45 @@ def add_affiliation_section(
 
 
 def add_work_section(
-    elements: List[Any], orcid_dict: Dict[str, Any], config: Dict[str, Any], heading: str, search_str: Union[str, List[str]]
+    elements: List[Any],
+    orcid_dict: Dict[str, Any],
+    config: Dict[str, Any],
+    heading: str,
+    search_str: Union[str, List[str]],
 ) -> None:
     """Appends specified work categories as a stylized table to the CV flowables."""
+    typst = _typst_delegate(config, "add_work_section")
+    if typst:
+        return typst(elements, orcid_dict, config, heading, search_str)
+
     column_widths = get_column_widths(config, "work")
-    if isinstance(search_str, str):
-        search_str = [search_str]
-
-    # Get subset of publications
-    works = dict_to_list(orcid_dict["work"])
-    works = [w for w in works if w.get("type") in search_str]
-    if not works:
-        logger.warning(f"No matching works for: {search_str}")
-        return
-
-    try:
-        works = sorted(
-            works,
-            key=lambda v: int(v.get("year", 0)) * 1000 + int(v.get("month", 0)),
-            reverse=True,
-        )
-    except (ValueError, TypeError):
-        pass
+    works = prepare_works(orcid_dict, config, search_str)
 
     is_heading = True
     for work in works:
-        work_date = str(work.get("year", ""))
-        work_journal = work.get("journal", "")
-        work_title = work.get("title", "")
-        
-        if "‐" in work_title:
-            work_title = work_title.replace("‐", "-")
-            
-        if work.get("type") == "software":
-            work_journal = work.get("subtitle", "")
-            work_date = str(work.get("journal", ""))
-            work["subtitle"] = ""
+        work_title = work["title"]
+        work_date = work["date"]
 
-        # Process authors
-        author_cat = ""
-        author_list = list(work.get("authors", []))
-        if author_list:
-            if config.get("initalize_authors"):
-                author_list = [initialize_name(i) for i in author_list]
-            if config.get("embolden_author"):
-                author_list = embolden_authors(orcid_dict["personal"], author_list)
-            
-            if len(author_list) == 1:
-                author_cat = author_list[0]
-            elif len(author_list) == 2:
-                author_cat = f"{author_list[0]} and {author_list[1]}"
-            else:
-                author_list[-1] = "and " + author_list[-1]
-                author_cat = ", ".join(author_list)
-                
-        if "‐" in author_cat:
-            author_cat = author_cat.replace("‐", "-")
-        if "\u0159" in author_cat:
-            author_cat = author_cat.replace("\u0159", "r")
+        author_cat = join_authors(work["authors"], bold=lambda name: f"<b>{name}</b>")
 
         # Process DOI/link
-        doi_str = work.get("doi", "")
-        if doi_str == "":
-            work_str = work_journal
+        link = work["link"]
+        if link is None:
+            work_str = work["journal"]
         else:
-            if "doi.org/" in doi_str:
-                idx = doi_str.find("doi.org/")
-                short_doi = doi_str[idx + 8 :]
-                doi_str = f'<link href="https://www.doi.org/{short_doi}">DOI: <u>{short_doi} </u></link>'
-            elif "github.com/" in doi_str:
-                idx = doi_str.find("github.com/")
-                short_doi = doi_str[idx + 11 :]
-                doi_str = f'<link href="https://www.github.com/{short_doi}">GitHub: <u>{short_doi} </u></link>'
-            else:
-                doi_str = f'<link href="{doi_str}"><u>{doi_str} </u></link>'
-            
-            work_str = f"{work_journal}, {doi_str}"
+            anchor = (
+                f'<link href="{link["url"]}">{link["prefix"]}'
+                f'<u>{link["label"]} </u></link>'
+            )
+            work_str = f'{work["journal"]}, {anchor}'
 
-        if work.get("subtitle") and work.get("subtitle") != "":
-            work_str = f"{work_str}, {work['subtitle']}"
+        if work["subtitle"]:
+            work_str = f'{work_str}, {work["subtitle"]}'
 
         work_body = Paragraph(
             f"{work_str}<br/>{author_cat}", style=config["item_body_style"]
         )
-        
+
         if is_heading:
             table_data, table_style = make_work_table(
                 config, work_title, work_body, work_date, section_heading=heading
@@ -286,16 +266,18 @@ def add_work_section(
 
 
 def add_funding_section(
-    elements: List[Any], orcid_dict: Dict[str, Any], config: Dict[str, Any], heading: str
+    elements: List[Any],
+    orcid_dict: Dict[str, Any],
+    config: Dict[str, Any],
+    heading: str,
 ) -> None:
     """Appends funding entries as a stylized table to the CV flowables."""
-    column_widths = get_column_widths(config, "affiliation")
+    typst = _typst_delegate(config, "add_funding_section")
+    if typst:
+        return typst(elements, orcid_dict, config, heading)
 
-    fund = dict_to_list(orcid_dict["funding"])
-    try:
-        fund = sorted(fund, key=lambda v: int(v.get("start_year", 0)), reverse=True)
-    except (ValueError, TypeError):
-        pass
+    column_widths = get_column_widths(config, "affiliation")
+    fund = prepare_funding(orcid_dict)
 
     is_heading = True
     for f in fund:
@@ -314,26 +296,25 @@ def add_funding_section(
 
 
 def add_review_section(
-    elements: List[Any], orcid_dict: Dict[str, Any], config: Dict[str, Any], heading: str
+    elements: List[Any],
+    orcid_dict: Dict[str, Any],
+    config: Dict[str, Any],
+    heading: str,
 ) -> None:
     """Appends peer review summaries grouped by journal as a multi-column table."""
-    if "reviews" not in orcid_dict:
+    typst = _typst_delegate(config, "add_review_section")
+    if typst:
+        return typst(elements, orcid_dict, config, heading)
+
+    reviews = prepare_reviews(orcid_dict)
+    if not reviews:
         return
-        
+
     column_widths = get_column_widths(config, "review")
-
-    # Count reviews per unique Org
-    review_dict = {}
-    for v in orcid_dict["reviews"].values():
-        org_name = v.get("org", "")
-        if org_name:
-            review_dict[org_name] = review_dict.get(org_name, 0) + 1
-
-    if not review_dict:
-        return
+    review_dict = dict(reviews)
 
     # Sort and make even for columns
-    sk = sorted(review_dict.keys())
+    sk = [org for org, _ in reviews]
     if len(sk) % 2 == 1:
         sk.append("")
         review_dict[""] = 0
@@ -358,25 +339,65 @@ def add_review_section(
         elements.append(Spacer(0, config["item_spacing"]))
 
 
-def quick_build(orcid_dir: str, output_fname: str, style: str = "greenspon-default") -> None:
-    """Convenience method to construct and save a standard CV using default layout choices."""
-    from orcid_cv.config import make_document_config
-    
-    orcid_dict = extract_orcid_info(orcid_dir)
-    config = make_document_config(style)
-    
-    doc_title = f"{orcid_dict['personal']['fullname']} - CV"
+def build_document(
+    output_fname: str,
+    elements: List[Any],
+    config: Dict[str, Any],
+    title: str = "",
+    author: str = "",
+    **kwargs: Any,
+) -> Any:
+    """
+    Renders the accumulated elements to `output_fname` with whichever backend the
+    config selects, so the same script can target reportlab or typst.
+
+    Set config['page_footer'] = True for a 'Page X of Y' footer with today's date.
+    """
+    typst = _typst_delegate(config, "build_document")
+    if typst:
+        return typst(
+            output_fname, elements, config, title=title, author=author, **kwargs
+        )
+
+    bottom_margin = (
+        config["margin"] + 10 if config.get("page_footer") else config["margin"]
+    )
     doc = SimpleDocTemplate(
         output_fname,
-        pagesize=letter,
+        pagesize=config["pagesize"],
         leftMargin=config["margin"],
         rightMargin=config["margin"],
         topMargin=config["margin"],
-        bottomMargin=config["margin"],
-        title=doc_title,
+        bottomMargin=bottom_margin,
+        title=title,
+        author=author,
+        **kwargs,
     )
-    
-    elements = []
+
+    if config.get("page_footer"):
+        doc.multiBuild(elements, canvasmaker=FooterCanvas)
+    else:
+        doc.build(elements)
+    return None
+
+
+def quick_build(
+    orcid_dir: str,
+    output_fname: str,
+    style: str = "greenspon-default",
+    backend: str = "reportlab",
+) -> None:
+    """
+    Convenience method to construct and save a standard CV using default layout
+    choices. `backend` selects the PDF engine: 'reportlab' or 'typst'.
+    """
+    from orcid_cv.config import make_document_config
+
+    orcid_dict = extract_orcid_info(orcid_dir)
+    config = make_document_config(style, backend=backend)
+
+    fullname = orcid_dict["personal"]["fullname"]
+    elements: List[Any] = []
     add_person_section(elements, orcid_dict, config)
     add_affiliation_section(elements, orcid_dict, config, "Employment", "employment")
     add_affiliation_section(elements, orcid_dict, config, "Education", "education")
@@ -385,6 +406,8 @@ def quick_build(orcid_dir: str, output_fname: str, style: str = "greenspon-defau
     )
     add_work_section(elements, orcid_dict, config, "Talks", "public-speech")
     add_work_section(elements, orcid_dict, config, "Preprints", "preprint")
-    
-    doc.build(elements)
+
+    build_document(
+        output_fname, elements, config, title=f"{fullname} - CV", author=fullname
+    )
     print("Success!")
