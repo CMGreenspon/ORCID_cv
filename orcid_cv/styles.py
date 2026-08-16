@@ -16,6 +16,25 @@ class BaseStyleRenderer:
     def get_column_widths(self, section_type: str) -> List[float]:
         raise NotImplementedError()
 
+    def _heading_table_style(self) -> List[Tuple[Any, ...]]:
+        """
+        Shared styles for the two rows that carry a section heading and its rule.
+        The rule is drawn at the bottom of the empty row below the heading, so
+        trimming that row's bottom padding lifts the rule closer to the text.
+        """
+        return [
+            ("SPAN", (0, 0), (-1, 0)),
+            (
+                "LINEBELOW",
+                (0, 1),
+                (-1, 1),
+                self.config["heading_rule_width"],
+                colors.gray,
+            ),
+            ("TOPPADDING", (0, 1), (-1, 1), 0),
+            ("BOTTOMPADDING", (0, 1), (-1, 1), self.config["heading_rule_padding"]),
+        ]
+
     def make_affiliation_table(
         self, affiliation: Dict[str, Any], section_heading: str = ""
     ) -> Tuple[List[List[Any]], List[Tuple[Any, ...]]]:
@@ -95,9 +114,7 @@ class GreensponDefaultRenderer(BaseStyleRenderer):
                 affiliation_head,
                 affiliation_body,
             ]
-            table_style = [
-                ("SPAN", (0, 0), (-1, 0)),
-                ("LINEBELOW", (0, 1), (-1, 1), 2, colors.gray),
+            table_style = self._heading_table_style() + [
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("NOSPLIT", (0, 0), (-1, -1)),
             ]
@@ -128,9 +145,7 @@ class GreensponDefaultRenderer(BaseStyleRenderer):
                 ],
                 [work_body, ""],
             ]
-            table_style = [
-                ("SPAN", (0, 0), (-1, 0)),
-                ("LINEBELOW", (0, 1), (-1, 1), 2, colors.gray),
+            table_style = self._heading_table_style() + [
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("NOSPLIT", (0, 0), (-1, -1)),
             ]
@@ -160,9 +175,7 @@ class GreensponDefaultRenderer(BaseStyleRenderer):
                 fund_head,
                 fund_body,
             ]
-            table_style = [
-                ("SPAN", (0, 0), (-1, 0)),
-                ("LINEBELOW", (0, 1), (-1, 1), 2, colors.gray),
+            table_style = self._heading_table_style() + [
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("NOSPLIT", (0, 0), (-1, -1)),
             ]
@@ -191,9 +204,7 @@ class GreensponDefaultRenderer(BaseStyleRenderer):
                 ["", ""],
                 [rev_body1, rev_body2],
             ]
-            table_style = [
-                ("SPAN", (0, 0), (-1, 0)),
-                ("LINEBELOW", (0, 1), (-1, 1), 2, colors.gray),
+            table_style = self._heading_table_style() + [
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("NOSPLIT", (0, 0), (-1, -1)),
                 ("HALIGN", (0, 0), (-1, -1), "LEFT"),

@@ -33,6 +33,11 @@ def _make_reportlab_config(style: str) -> Dict[str, Any]:
             "pagesize": letter,
             "margin": 40,
             "item_spacing": 5,
+            # Gap between a section heading and its rule: the rule is drawn at the
+            # bottom of the empty row below the heading, whose other padding is
+            # zeroed, so this is the only thing holding the rule down.
+            "heading_rule_width": 2,
+            "heading_rule_padding": 2,
             "page_footer": False,
             "initalize_authors": True,
             "embolden_author": True,
@@ -116,7 +121,7 @@ def _make_typst_config(style: str) -> Dict[str, Any]:
             "item_misc_font_size": 9,
             "item_body_font_size": 9,
             "item_line_gap": 9,
-            "heading_rule_gap": 18,
+            "heading_rule_gap": 14,
             "heading_rule_width": 2,
             "heading_body_gap": 3,
             "icon_size": 15,
