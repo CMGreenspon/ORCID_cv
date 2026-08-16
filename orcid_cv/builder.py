@@ -13,6 +13,7 @@ from orcid_cv.content import (
     prepare_affiliations,
     prepare_funding,
     prepare_reviews,
+    prepare_service,
     prepare_works,
 )
 from orcid_cv.parser import extract_orcid_info
@@ -202,6 +203,46 @@ def add_affiliation_section(
             is_heading = False
         else:
             table_data, table_style = make_affiliation_table(config, af)
+
+        t = Table(table_data, colWidths=column_widths)
+        t.setStyle(table_style)
+        elements.append(t)
+        elements.append(Spacer(0, config["item_spacing"]))
+
+
+def add_service_section(
+    elements: List[Any],
+    orcid_dict: Dict[str, Any],
+    config: Dict[str, Any],
+    heading: str,
+    match: Union[str, List[str], None] = None,
+    exclude: Union[str, List[str], None] = None,
+) -> None:
+    """
+    Appends mentorship/service entries as a stylized table to the CV flowables.
+
+    Service records share their shape with employments and educations, so they
+    are laid out by the same style hooks. `match` and `exclude` filter on the
+    role title, letting mentorship and other service become separate sections.
+    """
+    typst = _typst_delegate(config, "add_service_section")
+    if typst:
+        return typst(
+            elements, orcid_dict, config, heading, match=match, exclude=exclude
+        )
+
+    column_widths = get_column_widths(config, "affiliation")
+    services = prepare_service(orcid_dict, match=match, exclude=exclude)
+
+    is_heading = True
+    for sv in services:
+        if is_heading:
+            table_data, table_style = make_affiliation_table(
+                config, sv, section_heading=heading
+            )
+            is_heading = False
+        else:
+            table_data, table_style = make_affiliation_table(config, sv)
 
         t = Table(table_data, colWidths=column_widths)
         t.setStyle(table_style)
@@ -406,6 +447,7 @@ def quick_build(
     )
     add_work_section(elements, orcid_dict, config, "Talks", "public-speech")
     add_work_section(elements, orcid_dict, config, "Preprints", "preprint")
+    add_service_section(elements, orcid_dict, config, "Mentorship & Service")
 
     build_document(
         output_fname, elements, config, title=f"{fullname} - CV", author=fullname

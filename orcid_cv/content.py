@@ -70,6 +70,47 @@ def prepare_affiliations(
     return affiliations
 
 
+def _as_list(value: Optional[Union[str, List[str]]]) -> List[str]:
+    """Normalizes a string-or-list-of-strings argument into a list of strings."""
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [value]
+    return list(value)
+
+
+def prepare_service(
+    orcid_dict: Dict[str, Any],
+    match: Optional[Union[str, List[str]]] = None,
+    exclude: Optional[Union[str, List[str]]] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Returns service/mentorship entries sorted by start date, most recent first.
+
+    ORCID files mentorship and service under the same `affiliations/services`
+    folder with no field separating them, so `match` and `exclude` filter on
+    case-insensitive substrings of the role title. That lets one ORCID record
+    feed two CV sections, e.g. match='Advisor' for mentorship and
+    exclude='Advisor' for everything else.
+    """
+    services = prepare_affiliations(orcid_dict, "service")
+
+    match_terms = [m.lower() for m in _as_list(match)]
+    exclude_terms = [e.lower() for e in _as_list(exclude)]
+    if not match_terms and not exclude_terms:
+        return services
+
+    filtered = []
+    for entry in services:
+        role = entry.get("role", "").lower()
+        if match_terms and not any(term in role for term in match_terms):
+            continue
+        if exclude_terms and any(term in role for term in exclude_terms):
+            continue
+        filtered.append(entry)
+    return filtered
+
+
 def prepare_funding(orcid_dict: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Returns funding entries sorted by start year, most recent first."""
     if "funding" not in orcid_dict:

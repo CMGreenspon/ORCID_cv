@@ -41,7 +41,10 @@ def list_works(orcid_dir: str) -> None:
 
 
 def load_affiliation(affiliation_path: str) -> Dict[str, Any]:
-    """Loads a single affiliation record (employment or education)."""
+    """
+    Loads a single affiliation record. Employments, educations and services all
+    use the same `common:` schema, so one loader covers all three folders.
+    """
     affiliation_xml = load_xml(affiliation_path)
     affiliation_dict = {
         "organization": get_recursive_key(
@@ -59,6 +62,9 @@ def load_affiliation(affiliation_path: str) -> Dict[str, Any]:
     
     if affiliation_dict["end_date"] == "":
         affiliation_dict["date_range"] = affiliation_dict["start_date"] + " - present"
+    elif affiliation_dict["end_date"] == affiliation_dict["start_date"]:
+        # Single-year entries (common for service) read better without a range
+        affiliation_dict["date_range"] = affiliation_dict["start_date"]
     else:
         affiliation_dict["date_range"] = (
             affiliation_dict["start_date"] + " - " + affiliation_dict["end_date"]
@@ -371,7 +377,20 @@ def extract_orcid_info(orcid_dir: str) -> Dict[str, Any]:
     if os.path.isfile(json_path):
         print("Loading ORCID dict from local json.")
         with open(json_path, encoding="utf-8") as f:
-            return json.load(f)
+            cached = json.load(f)
+
+        # Caches written before the service section existed lack that key. Read
+        # just that folder back in rather than re-parsing everything, which would
+        # repeat the preprint and ISSN network lookups.
+        if "service" not in cached:
+            print("Adding service section to cached json.")
+            cached["service"] = folder_to_dict(
+                os.path.join(orcid_dir, "affiliations", "services"), load_affiliation
+            )
+            with open(json_path, "w", encoding="utf-8") as fp:
+                json.dump(cached, fp, indent=4)
+
+        return cached
 
     # Personal info
     person_path = os.path.join(orcid_dir, "person.xml")
@@ -435,6 +454,9 @@ def extract_orcid_info(orcid_dir: str) -> Dict[str, Any]:
     education_dict = folder_to_dict(
         os.path.join(orcid_dir, "affiliations", "educations"), load_affiliation
     )
+    service_dict = folder_to_dict(
+        os.path.join(orcid_dir, "affiliations", "services"), load_affiliation
+    )
     work_dict = folder_to_dict(os.path.join(orcid_dir, "works"), load_work)
     funding_dict = folder_to_dict(os.path.join(orcid_dir, "fundings"), load_funding)
     review_dict = folder_to_dict(os.path.join(orcid_dir, "peer_reviews"), load_review)
@@ -448,6 +470,7 @@ def extract_orcid_info(orcid_dir: str) -> Dict[str, Any]:
         "work": work_dict,
         "employment": employment_dict,
         "education": education_dict,
+        "service": service_dict,
         "funding": funding_dict,
         "reviews": review_dict,
     }

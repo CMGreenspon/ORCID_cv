@@ -39,6 +39,10 @@ ocv.add_work_section(
 ocv.add_work_section(elements, orcid_dict, config, "Talks", "lecture-speech")
 ocv.add_work_section(elements, orcid_dict, config, "Book Chapters", "book-chapter")
 ocv.add_work_section(elements, orcid_dict, config, "Software", "software")
+# ORCID keeps mentorship and service in one folder; match/exclude on the role
+# title splits them, or drop both arguments for a single combined section
+ocv.add_service_section(elements, orcid_dict, config, "Mentorship", match="Advisor")
+ocv.add_service_section(elements, orcid_dict, config, "Service", exclude="Advisor")
 ocv.build_document(
     output_fname,
     elements,

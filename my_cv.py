@@ -63,6 +63,8 @@ ocv.add_work_section(
 )
 ocv.add_work_section(elements, orcid_dict, config, "Invited Talks", "public-speech")
 ocv.add_funding_section(elements, orcid_dict, config, "Funding")
+ocv.add_service_section(elements, orcid_dict, config, "Mentorship", match="Advisor")
+ocv.add_service_section(elements, orcid_dict, config, "Service", exclude="Advisor")
 ocv.add_review_section(elements, orcid_dict, config, "Peer Review")
 ocv.add_work_section(elements, orcid_dict, config, "Book Chapters", "book-chapter")
 # ocv.add_work_section(elements, orcid_dict, config, 'Software', 'software')

@@ -33,8 +33,25 @@ elements = []
 ocv.add_person_section(elements, orcid_dict, config)
 ocv.add_affiliation_section(elements, orcid_dict, config, 'Employment', 'employment')
 ocv.add_work_section(elements, orcid_dict, config, 'Research Publications', 'journal-article')
+ocv.add_service_section(elements, orcid_dict, config, 'Mentorship & Service')
 ocv.build_document(output_fname, elements, config, title='My CV')
 ```
+
+## Mentorship and service
+`add_service_section` renders the records ORCID keeps under
+`affiliations/services`. ORCID stores mentorship and other service in that one
+folder with no field distinguishing them, so pass `match` or `exclude` to split
+them across two CV sections by a case-insensitive substring of the role title:
+```python
+ocv.add_service_section(elements, orcid_dict, config, 'Mentorship', match='Advisor')
+ocv.add_service_section(elements, orcid_dict, config, 'Service', exclude='Advisor')
+```
+Both accept a single string or a list of strings. With neither argument every
+service record is listed under one heading.
+
+If you already have an `ORCID.json` cache from an earlier version, the service
+section is read back out of the XML and added to it on the next load — no need
+to delete the cache.
 The two engines produce very similar, not identical, output: typst typesets a little
 more compactly and handles unusual characters in titles more gracefully, while
 reportlab strips anything that looks like an HTML tag.
@@ -46,7 +63,8 @@ ocv.build_document(output_fname, elements, config, save_source=r"cv.typ")
 ```
 
 ## Layout of the package
-* `parser.py` – reads the ORCID XML dump into a dictionary (cached as `ORCID.json`)
+* `parser.py` – reads the ORCID XML dump into a dictionary (cached as `ORCID.json`);
+  employments, educations and services all share one affiliation loader
 * `content.py` – turns that dictionary into markup-free entries shared by both backends
 * `builder.py` / `styles.py` – reportlab document assembly and styling
 * `typst_builder.py` / `typst_styles.py` – the same, emitting Typst markup

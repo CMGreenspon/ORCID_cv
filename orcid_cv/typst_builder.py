@@ -19,6 +19,7 @@ from orcid_cv.content import (
     prepare_funding,
     prepare_person,
     prepare_reviews,
+    prepare_service,
     prepare_works,
 )
 from orcid_cv.utils import package_directory
@@ -111,6 +112,30 @@ def add_affiliation_section(
     blocks = [
         renderer.make_affiliation_block(af)
         for af in prepare_affiliations(orcid_dict, affiliation_type)
+    ]
+    _append_section(elements, config, heading, blocks)
+
+
+def add_service_section(
+    elements: List[str],
+    orcid_dict: Dict[str, Any],
+    config: Dict[str, Any],
+    heading: str,
+    match: Union[str, List[str], None] = None,
+    exclude: Union[str, List[str], None] = None,
+) -> None:
+    """
+    Appends mentorship/service entries as a stylized section.
+
+    Service records share their shape with employments and educations, so they
+    are laid out by the same style hooks. `match` and `exclude` filter on the
+    role title, letting mentorship and other service become separate sections.
+    """
+    _ensure_renderer(config)
+    renderer = config["renderer"]
+    blocks = [
+        renderer.make_affiliation_block(sv)
+        for sv in prepare_service(orcid_dict, match=match, exclude=exclude)
     ]
     _append_section(elements, config, heading, blocks)
 

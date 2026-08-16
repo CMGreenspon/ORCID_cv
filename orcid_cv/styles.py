@@ -64,20 +64,26 @@ class GreensponDefaultRenderer(BaseStyleRenderer):
     def make_affiliation_table(
         self, affiliation: Dict[str, Any], section_heading: str = ""
     ) -> Tuple[List[List[Any]], List[Tuple[Any, ...]]]:
+        # Service entries do not always carry a department, so only join the
+        # parts that are actually present.
+        body = ", ".join(
+            p
+            for p in (
+                affiliation.get("organization", ""),
+                affiliation.get("department", ""),
+            )
+            if p
+        )
+        affiliation_head = [
+            Paragraph(affiliation["role"], style=self.config["item_title_style"]),
+            Paragraph(affiliation["date_range"], style=self.config["item_date_style"]),
+        ]
+        affiliation_body = [
+            Paragraph(body, style=self.config["item_body_style"]),
+            "",
+        ]
         if section_heading == "":
-            table_data = [
-                [
-                    Paragraph(affiliation["role"], style=self.config["item_title_style"]),
-                    Paragraph(affiliation["date_range"], style=self.config["item_date_style"]),
-                ],
-                [
-                    Paragraph(
-                        affiliation["organization"] + ", " + affiliation["department"],
-                        style=self.config["item_body_style"],
-                    ),
-                    "",
-                ],
-            ]
+            table_data = [affiliation_head, affiliation_body]
             table_style = [
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("NOSPLIT", (0, 0), (-1, -1)),
@@ -86,17 +92,8 @@ class GreensponDefaultRenderer(BaseStyleRenderer):
             table_data = [
                 [Paragraph(section_heading, style=self.config["section_style"]), ""],
                 ["", ""],
-                [
-                    Paragraph(affiliation["role"], style=self.config["item_title_style"]),
-                    Paragraph(affiliation["date_range"], style=self.config["item_date_style"]),
-                ],
-                [
-                    Paragraph(
-                        affiliation["organization"] + ", " + affiliation["department"],
-                        style=self.config["item_body_style"],
-                    ),
-                    "",
-                ],
+                affiliation_head,
+                affiliation_body,
             ]
             table_style = [
                 ("SPAN", (0, 0), (-1, 0)),
